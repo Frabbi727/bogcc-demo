@@ -51,14 +51,17 @@ import {
   BUSINESS_NAMES,
   BUSINESS_NAMES_EN,
   CLEANING_TEAMS,
+  DESIGNERS,
   DRIVERS,
   FATHER_NAMES,
   FEMALE_NAMES,
   HEIR_RELATIONS,
   MALE_NAMES,
+  MARKETS,
   MATERIALS,
   MOTHER_NAMES,
   ROADS,
+  SHOP_TRADES,
   SUPERVISORS,
   TECHNICIANS,
   VEHICLES,
@@ -506,7 +509,17 @@ export function buildSeed(today: Date = new Date()): SeedData {
     { key: 'garbage-trips', count: 40 },
     { key: 'cert-citizen', count: 20 },
     { key: 'cert-warish', count: 8 },
+    { key: 'market-rent', count: 36 },
+    { key: 'rickshaw-licence', count: 24 },
+    { key: 'building-plan', count: 14 },
+    { key: 'birth-death', count: 26 },
   ]
+
+  /**
+   * Books the office writes in every day rather than case by case. Their lines are
+   * dated across the last few weeks so the daily view is never empty.
+   */
+  const DAILY_BOOKS = new Set(['garbage-trips', 'market-rent', 'birth-death'])
 
   let entryIndex = 0
 
@@ -531,16 +544,15 @@ export function buildSeed(today: Date = new Date()): SeedData {
       const finished = reachedIndex === stepKeys.length - 1
       const serviceKey = config.serviceKey ?? plan.key
       // Trip logs are a daily book, so they only cover the last few weeks.
-      const createdAt =
-        plan.key === 'garbage-trips'
-          ? // The first few trips are dated today, so the daily card on the
-            // dashboard is never empty whenever the demo is shown.
-            i < 4
-            ? pastDay(0, 0)
-            : pastDay(1, 25)
-          : finished
-            ? pastDay(2, 400)
-            : openCreatedAt(serviceKey, 'entry')
+      const createdAt = DAILY_BOOKS.has(plan.key)
+        ? // The first few lines of a daily book are dated today, so the daily card
+          // on the dashboard is never empty whenever the demo is shown.
+          i < 4
+          ? pastDay(0, 0)
+          : pastDay(1, 25)
+        : finished
+          ? pastDay(2, 400)
+          : openCreatedAt(serviceKey, 'entry')
 
       const fiscalYear = fiscalYearOf(createdAt)
       const ward = pickWardWithContrast(rng, plan.key)
@@ -574,7 +586,7 @@ export function buildSeed(today: Date = new Date()): SeedData {
         // Staff fields are only filled at the step that asks for them.
         for (const key of step.requiredFields ?? []) {
           if (data[key] === undefined) {
-            data[key] = staffFieldValue(rng, key, cursor)
+            data[key] = staffFieldValue(rng, key, cursor, data)
           }
         }
       }
@@ -1033,7 +1045,12 @@ function stepNote(rng: Rng, registerKey: string, stepKey: string): string | unde
   return rng.chance(0.3) ? 'কার্যক্রম চলমান।' : undefined
 }
 
-function staffFieldValue(rng: Rng, key: string, at: string): string | number {
+function staffFieldValue(
+  rng: Rng,
+  key: string,
+  at: string,
+  data: Record<string, string | number | Heir[]>,
+): string | number {
   switch (key) {
     case 'technician':
       return rng.pick(TECHNICIANS)
@@ -1043,9 +1060,40 @@ function staffFieldValue(rng: Rng, key: string, at: string): string | number {
       return rng.pick(CLEANING_TEAMS)
     case 'repairDate':
     case 'resolvedDate':
+    case 'collectedDate':
+    case 'issueDate':
+    case 'inspectionDate':
+    case 'approvalDate':
       return at.slice(0, 10)
     case 'verifyNote':
       return 'ওয়ারিশদের তালিকা যাচাই করা হয়েছে; তথ্য সঠিক পাওয়া গেছে।'
+    case 'receiptNo':
+    case 'moneyReceiptNo':
+      return `R-${rng.int(1000, 9999)}`
+    case 'collected': {
+      // Most shopkeepers clear the month in full; a few pay part of it.
+      const rent = Number(data.monthlyRent ?? 0)
+      return rng.chance(0.78) ? rent : Math.round((rent * rng.int(40, 80)) / 100 / 10) * 10
+    }
+    case 'plateNo': {
+      const prefix =
+        data.vehicleType === 'ইজিবাইক' ? 'EB' : data.vehicleType === 'ভ্যান' ? 'VN' : 'RK'
+      return `${prefix}-${rng.int(1000, 9999)}`
+    }
+    case 'renewDate': {
+      // A licence runs for one year from the day it is issued.
+      const d = new Date(at)
+      d.setFullYear(d.getFullYear() + 1)
+      return dateOnly(d)
+    }
+    case 'matchResult':
+      return rng.chance(0.88) ? 'তথ্য মিলেছে' : rng.pick(['তথ্য মেলেনি', 'নিবন্ধন পাওয়া যায়নি'])
+    case 'inspectionNote':
+      return rng.pick([
+        'সরেজমিনে পরিদর্শন করা হইয়াছে; নকশা অনুযায়ী জমির পরিমাণ ও সেটব্যাক সঠিক পাওয়া গিয়াছে।',
+        'পরিদর্শনে দেখা যায় পার্শ্ববর্তী রাস্তার প্রস্থ পর্যাপ্ত; নির্মাণে আপত্তি নাই।',
+        'নকশায় উল্লিখিত তলা সংখ্যার সহিত জমির পরিমাণ সঙ্গতিপূর্ণ পাওয়া গিয়াছে।',
+      ])
     default:
       return ''
   }
@@ -1136,10 +1184,95 @@ function buildEntryData(
         heirs,
       }
     }
+    case 'market-rent': {
+      const rent = rng.int(12, 45) * 500
+      return {
+        market: rng.pick(MARKETS),
+        shopNo: `${rng.pick(['A', 'B', 'C', 'D'])}-${rng.int(1, 48)}`,
+        allottee: applicantName,
+        allotteeMobile: applicantMobile,
+        businessType: rng.pick(SHOP_TRADES),
+        month: BN_MONTHS[new Date(createdAt).getMonth()],
+        monthlyRent: rent,
+        ward,
+        // Most shops start the month clear; a few carry an arrear forward.
+        due: rng.chance(0.25) ? rent * rng.int(1, 3) : 0,
+      }
+    }
+    case 'rickshaw-licence': {
+      const vehicleType = rng.pick(['রিকশা', 'রিকশা', 'ভ্যান', 'ইজিবাইক', 'ঠেলাগাড়ি'])
+      const applicationKind = rng.chance(0.55) ? 'নবায়ন' : 'নতুন'
+      return {
+        vehicleType,
+        ownerName: applicantName,
+        ownerMobile: applicantMobile,
+        ownerNid: String(rng.int(1_000_000_000, 9_999_999_999)),
+        driverName: rng.chance(0.6) ? rng.pick(MALE_NAMES) : applicantName,
+        address: `${rng.pick(ROADS)}, ${area}`,
+        ward,
+        fee: vehicleType === 'ইজিবাইক' ? 1500 : vehicleType === 'ভ্যান' ? 800 : 500,
+        applicationKind,
+      }
+    }
+    case 'building-plan': {
+      const buildingUse = rng.pick(['আবাসিক', 'আবাসিক', 'বাণিজ্যিক', 'মিশ্র', 'শিল্প'])
+      const floors = buildingUse === 'আবাসিক' ? rng.int(1, 5) : rng.int(2, 8)
+      return {
+        applicationDate: createdAt.slice(0, 10),
+        applicantName,
+        applicantMobile,
+        holdingNo: `${ward}/${rng.int(100, 999)}`,
+        ward,
+        landArea: rng.int(3, 20),
+        floors,
+        buildingUse,
+        designerName: rng.pick(DESIGNERS),
+        fee: floors * rng.int(2, 4) * 1000,
+      }
+    }
+    case 'birth-death': {
+      const eventType = rng.chance(0.72) ? 'জন্ম' : 'মৃত্যু'
+      // BDRIS numbers are 17 digits: a 4-digit year followed by 13 more.
+      const year = eventType === 'জন্ম' ? rng.int(1985, 2024) : rng.int(2015, 2025)
+      const regNo = `${year}${String(rng.int(1_000_000_000_000, 9_999_999_999_999))}`
+      return {
+        verifyDate: createdAt.slice(0, 10),
+        regNo,
+        eventType,
+        name: rng.chance(0.4) ? rng.pick(FEMALE_NAMES) : rng.pick(MALE_NAMES),
+        fatherName: rng.pick(FATHER_NAMES),
+        motherName: rng.pick(MOTHER_NAMES),
+        eventDate: `${year}-${pad(rng.int(1, 12))}-${pad(rng.int(1, 28))}`,
+        ward,
+        usedFor: rng.pick([
+          'ট্রেড লাইসেন্স',
+          'নাগরিকত্ব সনদ',
+          'ওয়ারিশ সনদ',
+          'হোল্ডিং কর',
+          'অন্যান্য',
+        ]),
+      }
+    }
     default:
       return { ward }
   }
 }
+
+/** Bangla month names, indexed by JavaScript's month number. */
+const BN_MONTHS = [
+  'জানুয়ারি',
+  'ফেব্রুয়ারি',
+  'মার্চ',
+  'এপ্রিল',
+  'মে',
+  'জুন',
+  'জুলাই',
+  'আগস্ট',
+  'সেপ্টেম্বর',
+  'অক্টোবর',
+  'নভেম্বর',
+  'ডিসেম্বর',
+]
 
 /** Short human label for a register entry, used in audit rows and search. */
 export function entryLabelOf(entry: RegisterEntry): string {

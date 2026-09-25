@@ -1,7 +1,11 @@
+import { birthDeath } from './birthDeath'
+import { buildingPlan } from './buildingPlan'
 import { certCitizen } from './certCitizen'
 import { certWarish } from './certWarish'
 import { garbage } from './garbage'
 import { garbageTrips } from './garbageTrips'
+import { marketRent } from './marketRent'
+import { rickshawLicence } from './rickshawLicence'
 import { streetlight } from './streetlight'
 import type { RegisterConfig } from './types'
 
@@ -15,6 +19,10 @@ export const REGISTERS: RegisterConfig[] = [
   garbageTrips,
   certCitizen,
   certWarish,
+  marketRent,
+  rickshawLicence,
+  buildingPlan,
+  birthDeath,
 ]
 
 export function getRegister(key: string | undefined): RegisterConfig | undefined {

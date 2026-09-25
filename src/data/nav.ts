@@ -31,6 +31,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'ট্রেড লাইসেন্স', to: '/office/trade-licence' },
       { label: 'ট্রেড লাইসেন্স রেজিস্টার', to: '/office/register/trade-licence' },
+      { label: 'মার্কেট দোকান ভাড়া', to: '/office/registers/market-rent' },
       { label: 'রসিদ ও দৈনিক আদায়', to: '/office/receipts' },
     ],
   },
@@ -53,13 +54,16 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'দ্বিতীয় ধাপ',
-    items: [
-      { label: 'জন্ম-মৃত্যু রেফারেন্স', to: '/office/phase-2/birth-death', phase2: true },
-      { label: 'মার্কেট দোকান ভাড়া', to: '/office/phase-2/market-rent', phase2: true },
-      { label: 'রিকশা/ভ্যান লাইসেন্স', to: '/office/phase-2/rickshaw-licence', phase2: true },
-      { label: 'ইমারত নকশা', to: '/office/phase-2/building-plan', phase2: true },
-    ],
+    label: 'লাইসেন্স শাখা',
+    items: [{ label: 'রিকশা/ভ্যান লাইসেন্স', to: '/office/registers/rickshaw-licence' }],
+  },
+  {
+    label: 'ইঞ্জিনিয়ারিং শাখা',
+    items: [{ label: 'ইমারত নকশা রেজিস্টার', to: '/office/registers/building-plan' }],
+  },
+  {
+    label: 'জন্ম ও মৃত্যু নিবন্ধন শাখা',
+    items: [{ label: 'জন্ম-মৃত্যু রেফারেন্স', to: '/office/registers/birth-death' }],
   },
 ]
 

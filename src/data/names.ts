@@ -174,3 +174,33 @@ export const MATERIALS = [
 ]
 
 export const HEIR_RELATIONS = ['পুত্র', 'কন্যা', 'স্ত্রী', 'মাতা', 'ভাই', 'বোন']
+
+/** Corporation-owned markets whose shops pay monthly rent. */
+export const MARKETS = [
+  'ফতেহ আলী বাজার মার্কেট',
+  'সাতমাথা সুপার মার্কেট',
+  'নিউ মার্কেট',
+  'ঠনঠনিয়া হকার্স মার্কেট',
+  'বড়গোলা মার্কেট',
+]
+
+/** Trades run out of a rented market shop. */
+export const SHOP_TRADES = [
+  'কাপড়ের দোকান',
+  'মুদি দোকান',
+  'জুতার দোকান',
+  'স্টেশনারি',
+  'ফলের দোকান',
+  'চায়ের দোকান',
+  'দর্জি',
+  'মোবাইল সার্ভিসিং',
+]
+
+/** Draughtsmen whose names appear on a building plan application. */
+export const DESIGNERS = [
+  'প্রকৌশলী মোঃ আনোয়ার হোসেন',
+  'স্থপতি তানভীর আহমেদ',
+  'প্রকৌশলী মোঃ শফিকুল ইসলাম',
+  'স্থপতি নুসরাত জাহান',
+  'প্রকৌশলী মোঃ রেজাউল করিম',
+]

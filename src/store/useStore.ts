@@ -41,7 +41,10 @@ import type {
   User,
 } from '@/types'
 
-const STORAGE_KEY = 'bogcc-demo-v2'
+// Bumped when the seed gains records an already-open browser would otherwise miss:
+// the persisted state is restored wholesale, so a new register's book would stay
+// empty on any machine the demo had been shown on before.
+const STORAGE_KEY = 'bogcc-demo-v3'
 
 /* ---------- small helpers ---------- */
 
