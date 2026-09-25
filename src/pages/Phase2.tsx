@@ -10,7 +10,7 @@ export function Phase2() {
   const { key } = useParams()
   const module = getPhase2Module(key)
 
-  if (!module) return <Navigate to="/" replace />
+  if (!module) return <Navigate to="/office" replace />
 
   return (
     <>
@@ -24,9 +24,23 @@ export function Phase2() {
         <Card title="এই মডিউল কী করবে">
           <p className="text-[14px] leading-relaxed">{module.purpose}</p>
           <p className="mt-3 rounded-sm border border-amber/30 bg-amber/8 px-3 py-2 text-[12.5px] leading-relaxed text-ink/85">
-            এই অংশটি এখনো তৈরি হয়নি। প্রথম ধাপে ট্রেড লাইসেন্স, সড়কবাতি মেরামত ও বর্জ্য পরিবহনের
-            রেজিস্টার দেখানো হচ্ছে; একই ইঞ্জিন ব্যবহার করে পরের ধাপে এই রেজিস্টারগুলো যোগ হবে।
+            এই অংশটি এখনো তৈরি হয়নি। এই ধাপে ট্রেড লাইসেন্স, হোল্ডিং কর, অভিযোগ ও সনদের রেজিস্টার
+            দেখানো হচ্ছে; একই ইঞ্জিন ব্যবহার করে পরের ধাপে এই রেজিস্টারগুলো যোগ হবে।
           </p>
+          {module.external && (
+            <p className="mt-2 text-[12.5px] leading-relaxed">
+              এই কাজটি হয়{' '}
+              <a
+                href={module.external.url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-forest-700 hover:underline"
+              >
+                {module.external.label}
+              </a>
+              -এ।
+            </p>
+          )}
         </Card>
 
         <Card title="পরিকল্পিত রেজিস্টার কলাম" subtitle={`${toBnDigits(module.columns.length)} টি কলাম`}>

@@ -1,26 +1,16 @@
 import { ArrowRight } from 'lucide-react'
 import { Navigate, useNavigate } from 'react-router-dom'
 
-import { ROLE_ORDER, USERS } from '@/data/seed'
+import { ROLE_ORDER, USERS } from '@/data/users'
 import { useStore } from '@/store/useStore'
-import type { Role } from '@/types'
 
-const ROLE_DUTY: Record<Role, string> = {
-  operator: 'নতুন আবেদন ও রেজিস্টার এন্ট্রি করেন',
-  inspector: 'ট্রেড লাইসেন্স আবেদনের মাঠ যাচাই করেন',
-  officer: 'লাইসেন্স অনুমোদন দেন ও রেজিস্টার নম্বর বসান',
-  accounts: 'ফি আদায় করেন ও রসিদ ইস্যু করেন',
-  electrician: 'সড়কবাতি মেরামতের কাজ লিপিবদ্ধ করেন',
-  conservancy: 'বর্জ্য পরিবহনের ট্রিপ এন্ট্রি ও যাচাই করেন',
-  ceo: 'সবকিছু দেখতে পারেন, ড্যাশবোর্ড পর্যবেক্ষণ করেন',
-}
 
 export function Login() {
   const navigate = useNavigate()
   const session = useStore((s) => s.session)
   const login = useStore((s) => s.login)
 
-  if (session) return <Navigate to="/" replace />
+  if (session) return <Navigate to="/office" replace />
 
   return (
     <div className="flex min-h-screen flex-col bg-paper">
@@ -47,14 +37,14 @@ export function Login() {
                   type="button"
                   onClick={() => {
                     login(role)
-                    navigate('/')
+                    navigate('/office')
                   }}
                   className="group flex w-full items-center justify-between gap-3 rounded-md border border-rule bg-white px-4 py-3 text-left transition-colors hover:border-forest-700/45 hover:bg-forest-50"
                 >
                   <span className="min-w-0">
                     <span className="block text-[15px] font-medium">{user.title}</span>
                     <span className="block text-[13px] text-muted">{user.name}</span>
-                    <span className="mt-0.5 block text-[12.5px] text-muted">{ROLE_DUTY[role]}</span>
+                    <span className="mt-0.5 block text-[12.5px] text-muted">{user.hint}</span>
                   </span>
                   <ArrowRight
                     size={16}

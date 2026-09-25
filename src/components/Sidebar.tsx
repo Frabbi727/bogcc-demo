@@ -1,7 +1,8 @@
 import { X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
-import { NAV_GROUPS } from '@/data/nav'
+import { navFor } from '@/data/nav'
+import { useStore } from '@/store/useStore'
 import { cn } from '@/lib/cn'
 
 interface Props {
@@ -10,6 +11,9 @@ interface Props {
 }
 
 export function Sidebar({ open, onClose }: Props) {
+  const role = useStore((s) => s.session?.role)
+  const groups = navFor(role)
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -45,7 +49,7 @@ export function Sidebar({ open, onClose }: Props) {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
-          {NAV_GROUPS.map((group) => (
+          {groups.map((group) => (
             <div key={group.label} className="mb-4">
               <p className="px-2 pb-1 text-[11.5px] font-medium tracking-wide text-white/55">
                 {group.label}
@@ -55,7 +59,7 @@ export function Sidebar({ open, onClose }: Props) {
                   <li key={item.to}>
                     <NavLink
                       to={item.to}
-                      end={item.to === '/'}
+                      end={item.to === '/office'}
                       onClick={onClose}
                       className={({ isActive }) =>
                         cn(

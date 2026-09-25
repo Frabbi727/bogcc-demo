@@ -1,4 +1,4 @@
-import { BadgeCheck, Coins, Lightbulb, Truck, Wallet, Clock } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, Clock, Coins, Lightbulb, Truck, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
@@ -23,6 +23,9 @@ import { currentFiscalYear } from '@/lib/fiscal'
 import { LICENCE_STATUS_LABEL, LICENCE_STATUS_TONE, nextActionFor } from '@/lib/status'
 import { REGISTERS, getRegister } from '@/registers'
 import { entryLabel, useStore } from '@/store/useStore'
+import { issuedAt } from '@/lib/records'
+import { isOverdue, slaStatus } from '@/lib/sla'
+import { isOpen } from '@/lib/records'
 import type { Role } from '@/types'
 
 const FY_MONTHS = [
@@ -78,8 +81,7 @@ export function Dashboard() {
 
   const fy = currentFiscalYear()
   const today = todayKey()
-  const streetlight = getRegister('streetlight-repair')
-  const garbage = getRegister('garbage-trips')
+  const streetlight = getRegister('streetlight')
 
   const stats = useMemo(() => {
     const issuedThisFy = licences.filter((l) => l.status === 'issued' && l.fiscalYear === fy)
@@ -91,32 +93,45 @@ export function Dashboard() {
       .filter((r) => r.collectedAt.slice(0, 10) === today)
       .reduce((s, r) => s + r.total, 0)
 
+    const finalStreetlight = streetlight?.steps.at(-1)?.key
     const openFaults = entries.filter(
-      (e) =>
-        e.registerKey === 'streetlight-repair' &&
-        !e.cancelledAt &&
-        e.status !== streetlight?.statuses.at(-1),
+      (e) => e.registerKey === 'streetlight' && !e.cancelled && e.status !== finalStreetlight,
     )
     const todayTrips = entries
-      .filter((e) => e.registerKey === 'garbage-trips' && !e.cancelledAt && e.data.date === today)
+      .filter(
+        (e) => e.registerKey === 'garbage-trips' && !e.cancelled && e.data.tripDate === today,
+      )
       .reduce((s, e) => s + Number(e.data.trips ?? 0), 0)
+    // Work still waiting on somebody past its charter deadline. Records that were
+    // finished late are a reporting question, not something a desk can act on.
+    const overdue = [...licences, ...entries].filter((r) => isOpen(r) && isOverdue(r)).length
 
-    return { issuedThisFy, fyCollection, pending, todayCollection, openFaults, todayTrips }
+    return { issuedThisFy, fyCollection, pending, todayCollection, openFaults, todayTrips, overdue }
   }, [licences, receipts, entries, fy, today, streetlight])
 
   /** Everything waiting for the current role, across all modules. */
   const myWork = useMemo(() => {
     if (!role) return []
-    const items: { id: string; to: string; title: string; hint: string; badge?: ReactNode }[] = []
+    /** Lower rank = closer to breaching the charter, so it sorts to the top. */
+    const URGENCY = { overdue: 0, 'due-soon': 1, 'on-time': 2 } as const
+    const items: {
+      id: string
+      to: string
+      title: string
+      hint: string
+      badge?: ReactNode
+      rank: number
+    }[] = []
 
     for (const l of licences) {
       const next = nextActionFor(l.status)
       if (next && next.role === role) {
         items.push({
+          rank: URGENCY[slaStatus(l)],
           id: l.id,
-          to: `/trade-licence/${l.id}`,
+          to: `/office/trade-licence/${l.id}`,
           title: l.business.nameBn,
-          hint: `ট্রেড লাইসেন্স · ${next.action} · ${toBnDigits(l.licenceNo ?? l.appNo)}`,
+          hint: `ট্রেড লাইসেন্স · ${next.action} · ${toBnDigits(l.registerNo ?? l.appNo)}`,
           badge: (
             <StatusBadge label={LICENCE_STATUS_LABEL[l.status]} tone={LICENCE_STATUS_TONE[l.status]} />
           ),
@@ -125,21 +140,26 @@ export function Dashboard() {
     }
 
     for (const config of REGISTERS) {
-      if (!config.roles.advance.includes(role as Role)) continue
       for (const e of entries) {
-        if (e.registerKey !== config.key || e.cancelledAt) continue
-        const i = config.statuses.indexOf(e.status)
-        if (i < 0 || i >= config.statuses.length - 1) continue
+        if (e.registerKey !== config.key || e.cancelled) continue
+        const i = config.steps.findIndex((st) => st.key === e.status)
+        if (i < 0 || i >= config.steps.length - 1) continue
+        const next = config.steps[i + 1]
+        // Only the desk that acts next sees the line in its own inbox.
+        if (!next.actors.includes(role as Role)) continue
         items.push({
+          rank: URGENCY[slaStatus(e)],
           id: e.id,
-          to: `/registers/${config.key}/${e.id}`,
+          to: `/office/registers/${config.key}/${e.id}`,
           title: entryLabel(e),
-          hint: `${config.title} · পরবর্তী: ${config.statuses[i + 1]} · ${toBnDigits(e.serialNo)}`,
-          badge: <StatusBadge label={e.status} tone="pending" />,
+          hint: `${config.title} · পরবর্তী: ${next.label} · ${toBnDigits(e.serialNo)}`,
+          badge: <StatusBadge label={next.label} tone="pending" />,
         })
       }
     }
 
+    // Whatever is closest to breaching the charter deserves attention first.
+    items.sort((a, b) => a.rank - b.rank)
     return items.slice(0, 12)
   }, [role, licences, entries])
 
@@ -148,8 +168,9 @@ export function Dashboard() {
     return FY_MONTHS.map(({ m, label }) => {
       const year = m >= 6 ? startYear : startYear + 1
       const count = licences.filter((l) => {
-        if (l.status !== 'issued' || !l.issuedAt) return false
-        const d = new Date(l.issuedAt)
+        const on = issuedAt(l)
+        if (l.status !== 'issued' || !on) return false
+        const d = new Date(on)
         return d.getMonth() === m && d.getFullYear() === year
       }).length
       return { label, count }
@@ -159,7 +180,7 @@ export function Dashboard() {
   const faultsByWard = useMemo(() => {
     const map = new Map<number, number>()
     for (const e of stats.openFaults) {
-      const ward = Number(e.data.ward ?? 0)
+      const ward = e.ward
       map.set(ward, (map.get(ward) ?? 0) + 1)
     }
     return [...map.entries()]
@@ -170,15 +191,15 @@ export function Dashboard() {
   const repairDays = useMemo(() => {
     const done = entries.filter(
       (e) =>
-        e.registerKey === 'streetlight-repair' &&
-        !e.cancelledAt &&
-        e.status === streetlight?.statuses.at(-1) &&
-        e.data.repairDate &&
-        e.data.complaintDate,
+        e.registerKey === 'streetlight' &&
+        !e.cancelled &&
+        e.status === streetlight?.steps.at(-1)?.key &&
+        e.data.repairDate,
     )
     const buckets = new Map<string, number[]>()
     for (const e of done) {
-      const start = new Date(String(e.data.complaintDate))
+      // The complaint date is the record's own createdAt now, not a data column.
+      const start = new Date(e.createdAt)
       const end = new Date(String(e.data.repairDate))
       const days = Math.max(0, Math.round((end.getTime() - start.getTime()) / 86400000))
       const label = FY_MONTHS.find((x) => x.m === start.getMonth())?.label ?? ''
@@ -242,9 +263,15 @@ export function Dashboard() {
           icon={<Lightbulb size={17} />}
         />
         <StatCard
+          label="মেয়াদোত্তীর্ণ কাজ"
+          value={toBnDigits(stats.overdue)}
+          hint="সিটিজেন চার্টারের সময় পার হয়েছে"
+          icon={<AlertTriangle size={17} />}
+        />
+        <StatCard
           label="আজকের বর্জ্য ট্রিপ"
           value={toBnDigits(stats.todayTrips)}
-          hint={garbage ? garbage.section : undefined}
+          hint="পরিচ্ছন্নতা শাখা"
           icon={<Truck size={17} />}
         />
       </div>
@@ -283,7 +310,7 @@ export function Dashboard() {
         <Card title="সাম্প্রতিক কার্যক্রম" subtitle="সর্বশেষ ৮টি এন্ট্রি">
           <Timeline entries={recent} />
           <p className="mt-3 border-t border-rule/60 pt-2 text-[12.5px]">
-            <Link to="/audit-log" className="text-forest-700 hover:underline">
+            <Link to="/office/audit-log" className="text-forest-700 hover:underline">
               সম্পূর্ণ কার্যক্রম লগ দেখুন
             </Link>
           </p>

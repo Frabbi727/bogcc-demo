@@ -6,14 +6,14 @@ import { Sidebar } from '@/components/Sidebar'
 import { TopBar } from '@/components/TopBar'
 import { useStore } from '@/store/useStore'
 
-/** App shell. Redirects to the role picker when there is no session. */
+/** Office shell. Redirects to the role picker when there is no session. */
 export function Layout() {
   const session = useStore((s) => s.session)
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
 
   if (!session) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+    return <Navigate to="/office/login" replace state={{ from: location.pathname }} />
   }
 
   return (

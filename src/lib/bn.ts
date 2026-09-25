@@ -192,3 +192,26 @@ export function amountInWords(n: number): string {
   const sign = n < 0 ? 'ঋণাত্মক ' : ''
   return `${sign}${parts.join(' ')} টাকা মাত্র`
 }
+
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+
+/**
+ * Coarse relative time, e.g. "৫ মিনিট আগে". Used on activity feeds where the
+ * exact timestamp matters less than how fresh the line is.
+ */
+export function timeAgoBn(iso: string, from: Date = new Date()): string {
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const diff = from.getTime() - then
+  if (diff < 0) return 'এখনই'
+  if (diff < MINUTE) return 'এইমাত্র'
+  if (diff < HOUR) return `${toBnDigits(Math.floor(diff / MINUTE))} মিনিট আগে`
+  if (diff < DAY) return `${toBnDigits(Math.floor(diff / HOUR))} ঘণ্টা আগে`
+  const days = Math.floor(diff / DAY)
+  if (days < 30) return `${toBnDigits(days)} দিন আগে`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${toBnDigits(months)} মাস আগে`
+  return `${toBnDigits(Math.floor(months / 12))} বছর আগে`
+}

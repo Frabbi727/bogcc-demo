@@ -8,11 +8,15 @@ import { businessTypeOf } from '@/data/seed'
 import { amountInWords, banglaCalendarDate, formatDateBn, formatTaka, toBnDigits } from '@/lib/bn'
 import { validUntil } from '@/lib/fiscal'
 import { useStore } from '@/store/useStore'
+import { approvedAt, approvedBy, issuedAt, receiptFor } from '@/lib/records'
 
 export function PrintLicence() {
   const { id } = useParams()
   const licence = useStore((s) => s.licences.find((l) => l.id === id))
-  const receipt = useStore((s) => s.receipts.find((r) => r.licenceId === id))
+  const receipts = useStore((s) => s.receipts)
+  const receipt = licence ? receiptFor(receipts, licence) : undefined
+  const approvedOn = licence ? approvedAt(licence) : undefined
+  const issuedOn = licence ? issuedAt(licence) : undefined
 
   if (!licence) {
     return (
@@ -27,7 +31,7 @@ export function PrintLicence() {
 
   // The QR carries the data in the URL, so a phone can verify it offline.
   const verifyUrl = `${window.location.origin}/verify?${new URLSearchParams({
-    ln: licence.licenceNo ?? licence.appNo,
+    ln: licence.registerNo ?? licence.appNo,
     bn: licence.business.nameBn,
     on: licence.owner.name,
     vu: expiry.slice(0, 10),
@@ -37,7 +41,7 @@ export function PrintLicence() {
   return (
     <div className="min-h-screen bg-paper py-6 print:bg-white print:py-0">
       <div className="no-print mx-auto mb-4 flex max-w-[210mm] items-center justify-between gap-2 px-4">
-        <Link to={`/trade-licence/${licence.id}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-forest-700 hover:underline">
+        <Link to={`/office/trade-licence/${licence.id}`} className="inline-flex items-center gap-1.5 text-[13.5px] text-forest-700 hover:underline">
           <ArrowLeft size={14} />
           রেকর্ডে ফিরে যান
         </Link>
@@ -59,7 +63,7 @@ export function PrintLicence() {
 
         <div className="mt-4 flex flex-wrap justify-between gap-2 font-display text-[14px]">
           <p>
-            লাইসেন্স নং: <span className="font-medium">{toBnDigits(licence.licenceNo ?? '—')}</span>
+            লাইসেন্স নং: <span className="font-medium">{toBnDigits(licence.registerNo ?? '—')}</span>
           </p>
           <p>
             রেজিস্টার ক্রমিক নং: <span className="font-medium">{toBnDigits(licence.serial ?? '—')}</span>
@@ -134,11 +138,11 @@ export function PrintLicence() {
             <p className="mt-1 text-[11px] text-muted">যাচাইয়ের জন্য স্ক্যান করুন</p>
           </div>
 
-          <Stamp label="অনুমোদিত" sub={licence.approvedAt ? formatDateBn(licence.approvedAt) : undefined} />
+          <Stamp label="অনুমোদিত" sub={approvedOn ? formatDateBn(approvedOn) : undefined} />
 
           <div className="text-center">
             <div className="mt-8 w-52 border-t border-ink/60 pt-1 font-display text-[13px]">
-              {licence.approvedBy}
+              {approvedBy(licence)}
               <span className="block text-[12px] text-muted">লাইসেন্স অফিসার</span>
             </div>
           </div>
@@ -146,8 +150,8 @@ export function PrintLicence() {
 
         <footer className="mt-6 flex flex-wrap items-end justify-between gap-3 border-t border-ink/20 pt-2.5 text-[11.5px] text-muted">
           <p>
-            ইস্যুর তারিখ: {licence.issuedAt ? formatDateBn(licence.issuedAt) : '—'} ·{' '}
-            {licence.issuedAt ? banglaCalendarDate(licence.issuedAt) : ''}
+            ইস্যুর তারিখ: {issuedOn ? formatDateBn(issuedOn) : '—'} ·{' '}
+            {issuedOn ? banglaCalendarDate(issuedOn) : ''}
           </p>
           <p className="font-medium text-amber">ডেমো সংস্করণ — সকল তথ্য কাল্পনিক</p>
         </footer>

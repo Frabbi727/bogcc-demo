@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Field } from '@/components/ui/Field'
 import { toBnDigits } from '@/lib/bn'
-import { getRegister } from '@/registers'
+import { applicantFrom, getRegister } from '@/registers'
 import { useStore } from '@/store/useStore'
+import { bnToEnDigits } from '@/lib/bn'
+import type { FieldValue } from '@/types'
 import { normaliseField, validateField } from '@/lib/registerFields'
 import { FieldControl } from './fields'
 
@@ -18,17 +20,18 @@ export function RegisterNew() {
   const config = getRegister(key)
   const role = useStore((s) => s.session?.role)
   const createEntry = useStore((s) => s.createEntry)
+  const staffName = useStore((s) => s.session?.name ?? '')
 
   const [values, setValues] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   if (!config) return <Navigate to="/" replace />
 
-  const allowed = role ? config.roles.create.includes(role) : false
+  const allowed = role ? config.createRoles.includes(role) : false
 
-  /** Fields that only get filled at a later status are not asked for up front. */
-  const laterFields = new Set(Object.values(config.advancePrompts ?? {}).flat())
-  const formFields = config.fields.filter((f) => !laterFields.has(f.key))
+  /** Staff fields belong to a later step, so the intake form does not ask for them. */
+  const laterFields = new Set(config.fields.filter((f) => f.staffOnly).map((f) => f.key))
+  const formFields = config.fields.filter((f) => !f.staffOnly)
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -43,17 +46,24 @@ export function RegisterNew() {
       return
     }
 
-    const data: Record<string, string | number> = {}
+    const data: Record<string, FieldValue> = {}
     for (const field of config!.fields) {
-      data[field.key] = laterFields.has(field.key)
-        ? ''
-        : normaliseField(field, values[field.key] ?? '')
+      data[field.key] = field.staffOnly ? '' : normaliseField(field, values[field.key] ?? '')
     }
 
-    const entry = createEntry(config!.key, data)
+    // The record needs an applicant even when the register does not collect one:
+    // a trip log is "filed" by the member of staff writing the line.
+    const applicant = applicantFrom(config!, data)
+    const wardValue = Number(bnToEnDigits(String(data.ward ?? '')))
+    const entry = createEntry(config!.key, data, {
+      name: applicant?.name || staffName,
+      mobile: applicant?.mobile || '',
+      ward: Number.isFinite(wardValue) ? wardValue : 0,
+      channel: 'office',
+    })
     if (!entry) return
-    toast.success(`এন্ট্রি হয়েছে, ক্রমিক নং ${toBnDigits(entry.serial)}`)
-    navigate(`/registers/${config!.key}/${entry.id}`)
+    toast.success(`এন্ট্রি হয়েছে, ক্রমিক নং ${toBnDigits(entry.serial ?? 0)}`)
+    navigate(`/office/registers/${config!.key}/${entry.id}`)
   }
 
   if (!allowed) {
@@ -113,7 +123,7 @@ export function RegisterNew() {
           <Button type="submit" variant="primary">
             এন্ট্রি সংরক্ষণ করুন
           </Button>
-          <Button onClick={() => navigate(`/registers/${config!.key}`)}>বাতিল</Button>
+          <Button onClick={() => navigate(`/office/registers/${config!.key}`)}>বাতিল</Button>
         </div>
       </Card>
     </form>

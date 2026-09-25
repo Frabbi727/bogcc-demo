@@ -28,13 +28,13 @@ export const LICENCE_STATUS_ORDER: LicenceStatus[] = [
 
 /** Which role acts next on a licence, and what that action is called. */
 export function nextActionFor(status: LicenceStatus):
-  | { role: 'inspector' | 'officer' | 'accounts'; action: string }
+  | { role: 'inspector' | 'licenceOfficer' | 'accounts'; action: string }
   | undefined {
   switch (status) {
     case 'submitted':
       return { role: 'inspector', action: 'মাঠ যাচাই' }
     case 'verified':
-      return { role: 'officer', action: 'অনুমোদন ও রেজিস্টার নম্বর' }
+      return { role: 'licenceOfficer', action: 'অনুমোদন ও রেজিস্টার নম্বর' }
     case 'approved':
       return { role: 'accounts', action: 'ফি আদায় ও ইস্যু' }
     default:

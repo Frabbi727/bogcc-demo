@@ -1,0 +1,72 @@
+import type { RegisterConfig } from './types'
+
+/** C2 — garbage and cleanliness complaints. */
+export const garbage: RegisterConfig = {
+  key: 'garbage',
+  serviceKey: 'garbage',
+  title: 'বর্জ্য ও পরিচ্ছন্নতা অভিযোগ রেজিস্টার',
+  section: 'পরিচ্ছন্নতা শাখা',
+  serialPrefix: 'GC',
+  description: 'ময়লা, ডাস্টবিন ও ড্রেন সংক্রান্ত অভিযোগ এবং সমাধানের হিসাব',
+  citizenFacing: true,
+  dateField: 'createdAt',
+  applicantFields: { name: 'complainant', mobile: 'complainantMobile' },
+  createRoles: ['operator', 'conservancy'],
+  cancelRoles: ['conservancy', 'ceo'],
+  steps: [
+    { key: 'received', label: 'অভিযোগ গৃহীত', citizenLabel: 'অভিযোগ গৃহীত', actors: [] },
+    {
+      key: 'assigned',
+      label: 'পরিচ্ছন্নতা দল নিযুক্ত',
+      citizenLabel: 'পরিচ্ছন্নতা দল পাঠানো হয়েছে',
+      actors: ['conservancy'],
+      requiredFields: ['team'],
+    },
+    {
+      key: 'cleaned',
+      label: 'পরিষ্কার সম্পন্ন',
+      citizenLabel: 'পরিষ্কার সম্পন্ন',
+      actors: ['conservancy'],
+      requiredFields: ['resolvedDate'],
+    },
+  ],
+  fields: [
+    { key: 'ward', label: 'ওয়ার্ড', type: 'ward', required: true, showInBook: true, citizenInput: true },
+    {
+      key: 'landmark',
+      label: 'এলাকা / ল্যান্ডমার্ক',
+      type: 'text',
+      required: true,
+      showInBook: true,
+      citizenInput: true,
+    },
+    {
+      key: 'problemType',
+      label: 'সমস্যার ধরন',
+      type: 'select',
+      options: ['ময়লা জমে আছে', 'ডাস্টবিন উপচে পড়ছে', 'ড্রেন বন্ধ', 'মৃত প্রাণী'],
+      required: true,
+      showInBook: true,
+      citizenInput: true,
+    },
+    { key: 'photo', label: 'সমস্যার ছবি', type: 'photo', citizenInput: true },
+    { key: 'description', label: 'বিবরণ', type: 'textarea', citizenInput: true },
+    {
+      key: 'complainant',
+      label: 'অভিযোগকারীর নাম',
+      type: 'text',
+      required: true,
+      showInBook: true,
+      citizenInput: true,
+    },
+    {
+      key: 'complainantMobile',
+      label: 'অভিযোগকারীর মোবাইল',
+      type: 'phone',
+      required: true,
+      citizenInput: true,
+    },
+    { key: 'team', label: 'নিযুক্ত দল', type: 'text', showInBook: true, staffOnly: true },
+    { key: 'resolvedDate', label: 'সমাধানের তারিখ', type: 'date', showInBook: true, staffOnly: true },
+  ],
+}

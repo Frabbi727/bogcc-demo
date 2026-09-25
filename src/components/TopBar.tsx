@@ -26,7 +26,7 @@ export function TopBar({ onOpenMenu }: Props) {
   function onSearch(e: React.FormEvent) {
     e.preventDefault()
     const q = query.trim()
-    if (q) navigate(`/search?q=${encodeURIComponent(q)}`)
+    if (q) navigate(`/office/search?q=${encodeURIComponent(q)}`)
   }
 
   function onSwitchRole(role: Role) {
@@ -105,7 +105,7 @@ export function TopBar({ onOpenMenu }: Props) {
                 resetDemo()
                 setConfirmReset(false)
                 toast.success('ডেমো তথ্য পুনঃস্থাপন করা হয়েছে')
-                navigate('/')
+                navigate('/office')
               }}
             >
               ডেমো রিসেট

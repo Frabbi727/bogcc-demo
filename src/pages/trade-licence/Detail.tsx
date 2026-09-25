@@ -22,6 +22,8 @@ import { formatDateBn, formatDateTimeBn, formatTaka, toBnDigits } from '@/lib/bn
 import { validUntil } from '@/lib/fiscal'
 import { LICENCE_STATUS_LABEL, LICENCE_STATUS_TONE, nextActionFor } from '@/lib/status'
 import { useStore } from '@/store/useStore'
+import { SlaBadge } from '@/components/SlaBadge'
+import { approvedAt, issuedAt, receiptFor, stepBy, verifiedAt } from '@/lib/records'
 import type { PaymentMode } from '@/types'
 
 const STEP_LABELS = ['আবেদন জমা', 'মাঠ যাচাই', 'অনুমোদন ও রেজিস্টার নম্বর', 'ফি আদায় ও ইস্যু']
@@ -31,13 +33,13 @@ export function LicenceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const licence = useStore((s) => s.licences.find((l) => l.id === id))
-  const receipt = useStore((s) => s.receipts.find((r) => r.licenceId === id))
+  const receipts = useStore((s) => s.receipts)
   const allAudit = useStore((s) => s.audit)
   const role = useStore((s) => s.session?.role)
 
   const verifyLicence = useStore((s) => s.verifyLicence)
   const approveLicence = useStore((s) => s.approveLicence)
-  const collectFee = useStore((s) => s.collectFee)
+  const collectAtCounter = useStore((s) => s.collectAtCounter)
   const cancelLicence = useStore((s) => s.cancelLicence)
 
   // Derived, not selected: a selector returning a fresh array re-renders forever.
@@ -57,7 +59,7 @@ export function LicenceDetail() {
       <>
         <PageHeader title="রেকর্ড পাওয়া যায়নি" />
         <Card>
-          <Link to="/trade-licence" className="text-forest-700 hover:underline">
+          <Link to="/office/trade-licence" className="text-forest-700 hover:underline">
             ট্রেড লাইসেন্স তালিকায় ফিরে যান
           </Link>
         </Card>
@@ -65,6 +67,10 @@ export function LicenceDetail() {
     )
   }
 
+  const receipt = receiptFor(receipts, licence)
+  const verifiedOn = verifiedAt(licence)
+  const approvedOn = approvedAt(licence)
+  const issuedOn = issuedAt(licence)
   const cancelled = licence.status === 'cancelled'
   const done = DONE_BY_STATUS[licence.status]
   const next = nextActionFor(licence.status)
@@ -73,16 +79,16 @@ export function LicenceDetail() {
   const steps = [
     {
       label: STEP_LABELS[0],
-      meta: `${licence.createdBy} — ${formatDateBn(licence.createdAt)}`,
+      meta: `${licence.history[0]?.byName ?? ''} — ${formatDateBn(licence.createdAt)}`,
     },
     {
       label: STEP_LABELS[1],
-      meta: licence.verifiedAt ? `${licence.verifiedBy} — ${formatDateBn(licence.verifiedAt)}` : undefined,
+      meta: verifiedOn ? `${stepBy(licence, 'verified')} — ${formatDateBn(verifiedOn)}` : undefined,
     },
     {
       label: STEP_LABELS[2],
-      meta: licence.approvedAt
-        ? `ক্রমিক নং ${toBnDigits(licence.serial ?? '')} — ${formatDateBn(licence.approvedAt)}`
+      meta: approvedOn
+        ? `ক্রমিক নং ${toBnDigits(licence.serial ?? '')} — ${formatDateBn(approvedOn)}`
         : undefined,
     },
     {
@@ -112,7 +118,18 @@ export function LicenceDetail() {
       setTxnError('নগদ ছাড়া অন্য মাধ্যমে লেনদেন রেফারেন্স লিখতে হবে।')
       return
     }
-    const created = collectFee(licence!.id, { mode, txnRef: txnRef.trim() || undefined })
+    const created = collectAtCounter(
+      {
+        target: { type: 'trade-licence', id: licence!.id },
+        head: 'trade-licence',
+        purpose: `${licence!.kind === 'renewal' ? 'ট্রেড লাইসেন্স নবায়ন ফি' : 'ট্রেড লাইসেন্স ফি'} — ${licence!.business.nameBn}`,
+        payerName: licence!.owner.name,
+        payerMobile: licence!.applicantMobile,
+        feeLines: licence!.feeLines,
+        channel: 'office',
+      },
+      { mode, txnRef: txnRef.trim() || undefined },
+    )
     setTxnError('')
     if (created) toast.success(`ফি আদায় হয়েছে, রসিদ নং ${toBnDigits(created.receiptNo)}`)
   }
@@ -130,7 +147,7 @@ export function LicenceDetail() {
   }
 
   const canCancel =
-    role === 'officer' && ['submitted', 'verified', 'approved'].includes(licence.status)
+    role === 'licenceOfficer' && ['submitted', 'verified', 'approved'].includes(licence.status)
 
   return (
     <>
@@ -139,30 +156,33 @@ export function LicenceDetail() {
         subtitle={
           <>
             আবেদন নং {toBnDigits(licence.appNo)}
-            {licence.licenceNo && <> · লাইসেন্স নং {toBnDigits(licence.licenceNo)}</>}
+            {licence.registerNo && <> · লাইসেন্স নং {toBnDigits(licence.registerNo)}</>}
             {' · '}অর্থবছর {toBnDigits(licence.fiscalYear)}
           </>
         }
         badge={
-          <StatusBadge
-            label={LICENCE_STATUS_LABEL[licence.status]}
-            tone={LICENCE_STATUS_TONE[licence.status]}
-          />
+          <>
+            <StatusBadge
+              label={LICENCE_STATUS_LABEL[licence.status]}
+              tone={LICENCE_STATUS_TONE[licence.status]}
+            />
+            <SlaBadge record={licence} />
+          </>
         }
         actions={
           <>
-            <Button onClick={() => navigate('/trade-licence')}>
+            <Button onClick={() => navigate('/office/trade-licence')}>
               <ArrowLeft size={14} />
               তালিকা
             </Button>
             {licence.status === 'issued' && (
               <>
-                <Button variant="primary" onClick={() => navigate(`/trade-licence/${licence.id}/print`)}>
+                <Button variant="primary" onClick={() => navigate(`/print/licence/${licence.id}`)}>
                   <Printer size={14} />
                   লাইসেন্স প্রিন্ট
                 </Button>
                 {receipt && (
-                  <Button onClick={() => navigate(`/receipts/${receipt.id}/print`)}>
+                  <Button onClick={() => navigate(`/print/receipt/${receipt.id}`)}>
                     <ReceiptIcon size={14} />
                     রসিদ প্রিন্ট
                   </Button>
@@ -180,14 +200,14 @@ export function LicenceDetail() {
             {(licence.status === 'approved' || licence.status === 'issued') && (
               <Stamp
                 label="অনুমোদিত"
-                sub={licence.approvedAt ? formatDateBn(licence.approvedAt) : undefined}
+                sub={approvedOn ? formatDateBn(approvedOn) : undefined}
                 className="shrink-0"
               />
             )}
             {cancelled && (
               <Stamp
                 label="বাতিল"
-                sub={licence.cancelledAt ? formatDateBn(licence.cancelledAt) : undefined}
+                sub={licence.cancelled ? formatDateBn(licence.cancelled.at) : undefined}
                 className="shrink-0"
               />
             )}
@@ -197,9 +217,9 @@ export function LicenceDetail() {
         {cancelled && (
           <Card className="border-stamp/35 bg-stamp/4">
             <p className="text-[13px] font-medium text-stamp">বাতিলের কারণ</p>
-            <p className="mt-1 text-[13.5px] leading-relaxed">{licence.cancelReason}</p>
+            <p className="mt-1 text-[13.5px] leading-relaxed">{licence.cancelled?.reason}</p>
             <p className="mt-2 text-[12.5px] text-muted">
-              {licence.cancelledBy} — {licence.cancelledAt && formatDateTimeBn(licence.cancelledAt)}
+              {licence.cancelled?.by} — {licence.cancelled && formatDateTimeBn(licence.cancelled.at)}
               {' · '}রেকর্ডটি মুছে ফেলা হয়নি, রেজিস্টারে দৃশ্যমান থাকবে।
             </p>
           </Card>
@@ -322,7 +342,7 @@ export function LicenceDetail() {
         {licence.status === 'issued' && (
           <Card title="ইস্যু সম্পন্ন">
             <p className="text-[13.5px] text-muted">
-              লাইসেন্স ইস্যু হয়েছে {licence.issuedAt && formatDateTimeBn(licence.issuedAt)}। মেয়াদ{' '}
+              লাইসেন্স ইস্যু হয়েছে {issuedOn && formatDateTimeBn(issuedOn)}। মেয়াদ{' '}
               {formatDateBn(validUntil(licence.fiscalYear))} পর্যন্ত।
             </p>
           </Card>
@@ -376,7 +396,7 @@ export function LicenceDetail() {
               <p className="mt-2.5 text-[13px]">
                 রসিদ নং{' '}
                 <Link
-                  to={`/receipts/${receipt.id}/print`}
+                  to={`/print/receipt/${receipt.id}`}
                   className="font-medium text-forest-700 hover:underline"
                 >
                   {toBnDigits(receipt.receiptNo)}

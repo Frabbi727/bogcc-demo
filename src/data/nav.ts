@@ -1,10 +1,14 @@
-/** Sidebar navigation, grouped by office section. */
+import type { Role } from '@/types'
+
+/** Sidebar navigation, grouped by office section (Spec v2 §14). */
 
 export interface NavItem {
   label: string
   to: string
   /** Marks a second-phase placeholder. */
   phase2?: boolean
+  /** Restricts the link to these roles; omitted means everyone sees it. */
+  roles?: Role[]
 }
 
 export interface NavGroup {
@@ -16,36 +20,53 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'সাধারণ',
     items: [
-      { label: 'ড্যাশবোর্ড', to: '/' },
-      { label: 'অনুসন্ধান', to: '/search' },
-      { label: 'কার্যক্রম লগ', to: '/audit-log' },
+      { label: 'ড্যাশবোর্ড', to: '/office' },
+      { label: 'মেয়র ড্যাশবোর্ড', to: '/office/mayor', roles: ['mayor', 'ceo'] },
+      { label: 'অনুসন্ধান', to: '/office/search' },
+      { label: 'কার্যক্রম লগ', to: '/office/audit-log' },
     ],
   },
   {
     label: 'রাজস্ব শাখা',
     items: [
-      { label: 'ট্রেড লাইসেন্স', to: '/trade-licence' },
-      { label: 'ট্রেড লাইসেন্স রেজিস্টার', to: '/register' },
-      { label: 'রসিদ', to: '/receipts' },
-      { label: 'হোল্ডিং কর', to: '/phase-2/holding-tax', phase2: true },
-      { label: 'মার্কেট দোকান ভাড়া', to: '/phase-2/market-rent', phase2: true },
+      { label: 'ট্রেড লাইসেন্স', to: '/office/trade-licence' },
+      { label: 'ট্রেড লাইসেন্স রেজিস্টার', to: '/office/register/trade-licence' },
+      { label: 'রসিদ ও দৈনিক আদায়', to: '/office/receipts' },
     ],
   },
   {
     label: 'বিদ্যুৎ শাখা',
-    items: [{ label: 'সড়কবাতি মেরামত রেজিস্টার', to: '/registers/streetlight-repair' }],
+    items: [{ label: 'সড়কবাতি রেজিস্টার', to: '/office/registers/streetlight' }],
   },
   {
     label: 'পরিচ্ছন্নতা শাখা',
-    items: [{ label: 'বর্জ্য পরিবহন ট্রিপ রেজিস্টার', to: '/registers/garbage-trips' }],
+    items: [
+      { label: 'অভিযোগ রেজিস্টার', to: '/office/registers/garbage' },
+      { label: 'গাড়ির ট্রিপ রেজিস্টার', to: '/office/registers/garbage-trips' },
+    ],
   },
   {
-    label: 'অন্যান্য (দ্বিতীয় ধাপ)',
+    label: 'সনদপত্র',
     items: [
-      { label: 'জন্ম-মৃত্যু', to: '/phase-2/birth-death', phase2: true },
-      { label: 'সনদপত্র', to: '/phase-2/certificates', phase2: true },
-      { label: 'রিকশা/ভ্যান লাইসেন্স', to: '/phase-2/rickshaw-licence', phase2: true },
-      { label: 'ইমারত নকশা', to: '/phase-2/building-plan', phase2: true },
+      { label: 'নাগরিকত্ব সনদ', to: '/office/registers/cert-citizen' },
+      { label: 'ওয়ারিশ সনদ', to: '/office/registers/cert-warish' },
+    ],
+  },
+  {
+    label: 'দ্বিতীয় ধাপ',
+    items: [
+      { label: 'জন্ম-মৃত্যু রেফারেন্স', to: '/office/phase-2/birth-death', phase2: true },
+      { label: 'মার্কেট দোকান ভাড়া', to: '/office/phase-2/market-rent', phase2: true },
+      { label: 'রিকশা/ভ্যান লাইসেন্স', to: '/office/phase-2/rickshaw-licence', phase2: true },
+      { label: 'ইমারত নকশা', to: '/office/phase-2/building-plan', phase2: true },
     ],
   },
 ]
+
+/** The groups a given role should see, with role-restricted links removed. */
+export function navFor(role: Role | undefined): NavGroup[] {
+  return NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.roles || (role && item.roles.includes(role))),
+  })).filter((group) => group.items.length > 0)
+}

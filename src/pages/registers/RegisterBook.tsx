@@ -1,4 +1,4 @@
-import { Plus, Printer } from 'lucide-react'
+import { Download, Plus, Printer } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 
@@ -16,7 +16,10 @@ import { currentFiscalYear, fiscalYearOptions } from '@/lib/fiscal'
 import { entryStatusTone } from '@/lib/status'
 import { getRegister } from '@/registers'
 import { useStore } from '@/store/useStore'
-import { displayField } from '@/lib/registerFields'
+import { displayField, plainField } from '@/lib/registerFields'
+import { SLA_LABEL, slaStatus } from '@/lib/sla'
+import { downloadCsv } from '@/lib/csv'
+import type { RegisterEntry } from '@/types'
 
 export function RegisterBook() {
   const { key } = useParams()
@@ -36,16 +39,21 @@ export function RegisterBook() {
 
   const rows = useMemo(() => {
     if (!config) return []
+    const dateOf = (e: RegisterEntry) =>
+      (config.dateField === 'createdAt'
+        ? e.createdAt
+        : String(e.data[config.dateField] ?? '')
+      ).slice(0, 10)
     return entries
       .filter((e) => e.registerKey === config.key && e.fiscalYear === fy)
-      .filter((e) => ward === 'all' || String(e.data.ward ?? '') === ward)
+      .filter((e) => ward === 'all' || String(e.ward) === ward)
       .filter((e) => {
-        const date = String(e.data[config.dateField] ?? '')
+        const date = dateOf(e)
         if (from && date < from) return false
         if (to && date > to) return false
         return true
       })
-      .sort((a, b) => a.serial - b.serial)
+      .sort((a, b) => (a.serial ?? 0) - (b.serial ?? 0))
   }, [entries, config, fy, ward, from, to])
 
   if (!config) return <Navigate to="/" replace />
@@ -61,24 +69,44 @@ export function RegisterBook() {
         | 'center',
     })),
     { key: 'status', label: 'অবস্থা' },
+    { key: 'sla', label: 'সময়সীমা' },
   ]
 
-  const ledgerRows: LedgerRow[] = rows.map((e) => ({
-    id: e.id,
-    cancelled: !!e.cancelledAt,
-    to: `/registers/${config.key}/${e.id}`,
-    cells: [
-      toBnDigits(e.serial),
-      ...bookFields.map((f) => displayField(f, e.data[f.key])),
-      e.cancelledAt ? (
-        <StatusBadge key="status" label="বাতিল" tone="danger" />
-      ) : (
-        <StatusBadge key="status" label={e.status} tone={entryStatusTone(config.statuses, e.status)} />
-      ),
-    ],
-  }))
+  const statusLabel = (key: string) => config.steps.find((s) => s.key === key)?.label ?? key
+  const stepKeys = config.steps.map((s) => s.key)
 
-  const active = rows.filter((e) => !e.cancelledAt)
+  const ledgerRows: LedgerRow[] = rows.map((e) => {
+    const sla = slaStatus(e)
+    return {
+      id: e.id,
+      cancelled: !!e.cancelled,
+      to: `/office/registers/${config.key}/${e.id}`,
+      cells: [
+        toBnDigits(e.serial ?? 0),
+        ...bookFields.map((f) => displayField(f, e.data[f.key])),
+        e.cancelled ? (
+          <StatusBadge key="status" label="বাতিল" tone="danger" />
+        ) : (
+          <StatusBadge
+            key="status"
+            label={statusLabel(e.status)}
+            tone={entryStatusTone(stepKeys, e.status)}
+          />
+        ),
+        e.cancelled ? (
+          '—'
+        ) : (
+          <StatusBadge
+            key="sla"
+            label={SLA_LABEL[sla]}
+            tone={sla === 'overdue' ? 'danger' : sla === 'due-soon' ? 'pending' : 'success'}
+          />
+        ),
+      ],
+    }
+  })
+
+  const active = rows.filter((e) => !e.cancelled)
   const footer = [
     '',
     ...bookFields.map((f) => {
@@ -89,9 +117,26 @@ export function RegisterBook() {
       return ''
     }),
     `মোট ${toBnDigits(rows.length)} টি এন্ট্রি`,
+    '',
   ]
 
-  const canCreate = role ? config.roles.create.includes(role) : false
+  /** Officers open these in Excel, so the CSV carries plain values, not Bangla digits. */
+  function exportCsv() {
+    downloadCsv(`${config!.key}-${fy}`, rows, [
+      { header: 'ক্রমিক নং', value: (e) => e.serial ?? '' },
+      { header: 'সিরিয়াল', value: (e) => e.serialNo },
+      ...bookFields.map((f) => ({
+        header: f.label,
+        value: (e: RegisterEntry) => plainField(f, e.data[f.key]),
+      })),
+      { header: 'অবস্থা', value: (e) => (e.cancelled ? 'বাতিল' : statusLabel(e.status)) },
+      { header: 'সময়সীমা', value: (e) => (e.cancelled ? '' : SLA_LABEL[slaStatus(e)]) },
+      { header: 'ট্র্যাকিং নং', value: (e) => e.trackingNo },
+      { header: 'বাতিলের কারণ', value: (e) => e.cancelled?.reason ?? '' },
+    ])
+  }
+
+  const canCreate = role ? config.createRoles.includes(role) : false
 
   return (
     <div className="print-landscape">
@@ -122,11 +167,15 @@ export function RegisterBook() {
               ))}
             </Select>
             {canCreate && (
-              <LinkButton to={`/registers/${config.key}/new`} variant="primary">
+              <LinkButton to={`/office/registers/${config.key}/new`} variant="primary">
                 <Plus size={14} />
                 নতুন এন্ট্রি
               </LinkButton>
             )}
+            <Button onClick={exportCsv}>
+              <Download size={14} />
+              CSV
+            </Button>
             <Button onClick={() => window.print()}>
               <Printer size={14} />
               পাতা প্রিন্ট

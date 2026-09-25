@@ -8,7 +8,10 @@ import { useStore } from '@/store/useStore'
 export function PrintReceipt() {
   const { id } = useParams()
   const receipt = useStore((s) => s.receipts.find((r) => r.id === id))
-  const licence = useStore((s) => s.licences.find((l) => l.id === receipt?.licenceId))
+  const source = receipt?.source
+  const licence = useStore((s) =>
+    source?.type === 'trade-licence' ? s.licences.find((l) => l.id === source.id) : undefined,
+  )
 
   if (!receipt) {
     return (
@@ -22,7 +25,7 @@ export function PrintReceipt() {
     <div className="min-h-screen bg-paper py-6 print:bg-white print:py-0">
       <div className="no-print mx-auto mb-4 flex max-w-[210mm] items-center justify-between gap-2 px-4">
         <Link
-          to={licence ? `/trade-licence/${licence.id}` : '/receipts'}
+          to={licence ? `/office/trade-licence/${licence.id}` : '/office/receipts'}
           className="inline-flex items-center gap-1.5 text-[13.5px] text-forest-700 hover:underline"
         >
           <ArrowLeft size={14} />
@@ -61,15 +64,20 @@ export function PrintReceipt() {
 
         <table className="mt-4 w-full border border-ink/25 text-[13.5px]">
           <tbody>
+            {/* Money is collected against different things, so the rows follow
+                whatever this receipt was issued for rather than assuming a licence. */}
             {[
               ['জমাদানকারীর নাম', receipt.payerName],
-              ['প্রতিষ্ঠান', licence ? licence.business.nameBn : receipt.purpose],
-              [
-                'ঠিকানা',
-                licence ? toBnDigits(licence.business.address) : '—',
-              ],
+              ...(licence
+                ? [
+                    ['প্রতিষ্ঠান', licence.business.nameBn],
+                    ['ঠিকানা', toBnDigits(licence.business.address)],
+                    ['লাইসেন্স নং', licence.registerNo ? toBnDigits(licence.registerNo) : '—'],
+                  ]
+                : receipt.source.type === 'holding'
+                  ? [['হোল্ডিং নং', toBnDigits(receipt.source.holdingNo)]]
+                  : []),
               ['খাত', receipt.purpose],
-              ['লাইসেন্স নং', licence?.licenceNo ? toBnDigits(licence.licenceNo) : '—'],
             ].map(([label, value]) => (
               <tr key={label} className="border-b border-ink/15 last:border-0">
                 <th scope="row" className="w-[34%] border-r border-ink/15 px-3 py-1.5 text-left font-normal text-muted">

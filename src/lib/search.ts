@@ -42,7 +42,7 @@ export function searchAll(
           l.owner.fatherName,
           l.owner.nid,
           l.owner.mobile,
-          l.licenceNo ?? '',
+          l.registerNo ?? '',
           l.appNo,
           l.business.holdingNo,
           l.business.area,
@@ -51,10 +51,10 @@ export function searchAll(
     )
     .map((l) => ({
       id: l.id,
-      to: `/trade-licence/${l.id}`,
+      to: `/office/trade-licence/${l.id}`,
       title: l.business.nameBn,
       subtitle: `${l.owner.name} · ${businessTypeOf(l.business.typeKey).label}`,
-      meta: `${l.licenceNo ?? l.appNo} · ওয়ার্ড ${l.business.ward}`,
+      meta: `${l.registerNo ?? l.appNo} · ওয়ার্ড ${l.business.ward}`,
       cancelled: l.status === 'cancelled',
     }))
 
@@ -73,11 +73,11 @@ export function searchAll(
         const shown = config.fields.filter((f) => f.showInBook).slice(0, 3)
         return {
           id: e.id,
-          to: `/registers/${config.key}/${e.id}`,
+          to: `/office/registers/${config.key}/${e.id}`,
           title: shown.map((f) => String(e.data[f.key] ?? '')).filter(Boolean).join(' · '),
-          subtitle: e.cancelledAt ? 'বাতিল' : e.status,
+          subtitle: e.cancelled ? 'বাতিল' : e.status,
           meta: e.serialNo,
-          cancelled: !!e.cancelledAt,
+          cancelled: !!e.cancelled,
         }
       })
     if (hits.length > 0) groups.push({ key: config.key, label: config.title, hits })

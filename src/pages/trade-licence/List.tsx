@@ -46,7 +46,7 @@ export function LicenceList() {
           l.owner.nid,
           l.owner.mobile,
           l.appNo,
-          l.licenceNo ?? '',
+          l.registerNo ?? '',
           l.business.holdingNo,
         ]
           .join(' ')
@@ -62,7 +62,7 @@ export function LicenceList() {
         subtitle="আবেদন জমা থেকে ফি আদায় ও ইস্যু পর্যন্ত প্রতিটি ধাপ এখানে দেখা যায়।"
         actions={
           role === 'operator' && (
-            <LinkButton to="/trade-licence/new" variant="primary">
+            <LinkButton to="/office/trade-licence/new" variant="primary">
               <Plus size={14} />
               নতুন আবেদন
             </LinkButton>
@@ -111,10 +111,10 @@ export function LicenceList() {
                 {rows.map((l) => (
                   <tr key={l.id} className="border-b border-rule/50 last:border-0 hover:bg-forest-50/40">
                     <td className="px-3 py-2 align-top whitespace-nowrap">
-                      <Link to={`/trade-licence/${l.id}`} className="font-medium text-forest-700 hover:underline">
-                        {toBnDigits(l.licenceNo ?? l.appNo)}
+                      <Link to={`/office/trade-licence/${l.id}`} className="font-medium text-forest-700 hover:underline">
+                        {toBnDigits(l.registerNo ?? l.appNo)}
                       </Link>
-                      {l.licenceNo && (
+                      {l.registerNo && (
                         <span className="block text-[12px] text-muted">{toBnDigits(l.appNo)}</span>
                       )}
                     </td>

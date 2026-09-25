@@ -105,6 +105,7 @@ export function LicenceNew() {
 
     const ward = Number(bnToEnDigits(form.ward))
     const licence = createLicence({
+      channel: 'office',
       business: {
         nameBn: form.nameBn.trim(),
         nameEn: form.nameEn.trim(),
@@ -124,7 +125,7 @@ export function LicenceNew() {
       },
     })
     toast.success(`আবেদন জমা হয়েছে, আবেদন নং ${toBnDigits(licence.appNo)}`)
-    navigate(`/trade-licence/${licence.id}`)
+    navigate(`/office/trade-licence/${licence.id}`)
   }
 
   if (role !== 'operator') {
@@ -305,7 +306,7 @@ export function LicenceNew() {
             <Button type="submit" variant="primary">
               আবেদন জমা দিন
             </Button>
-            <Button onClick={() => navigate('/trade-licence')}>বাতিল</Button>
+            <Button onClick={() => navigate('/office/trade-licence')}>বাতিল</Button>
           </div>
         </div>
 

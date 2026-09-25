@@ -40,10 +40,17 @@ export function ReceiptList() {
   const todayReceipts = receipts.filter((r) => r.collectedAt.slice(0, 10) === today)
   const todayTotal = todayReceipts.reduce((s, r) => s + r.total, 0)
 
-  const byMode = PAYMENT_MODES.map((mode) => ({
-    mode,
-    count: todayReceipts.filter((r) => r.mode === mode).length,
-    total: todayReceipts.filter((r) => r.mode === mode).reduce((s, r) => s + r.total, 0),
+  const counterModes = PAYMENT_MODES.map((mode) => ({
+    label: mode,
+    rows: todayReceipts.filter((r) => r.channel === 'office' && r.mode === mode),
+  }))
+  const byMode = [
+    ...counterModes,
+    { label: 'অনলাইন', rows: todayReceipts.filter((r) => r.channel === 'online') },
+  ].map((m) => ({
+    label: m.label,
+    count: m.rows.length,
+    total: m.rows.reduce((s, r) => s + r.total, 0),
   }))
 
   return (
@@ -67,7 +74,7 @@ export function ReceiptList() {
         }
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <Card bodyClassName="px-4 py-3">
           <p className="text-[12.5px] text-muted">এ অর্থবছরের মোট আদায়</p>
           <p className="mt-0.5 font-display text-[22px] leading-tight">{formatTaka(yearTotal)}</p>
@@ -78,8 +85,8 @@ export function ReceiptList() {
           <p className="text-[12px] text-muted">{toBnDigits(todayReceipts.length)} টি রসিদ</p>
         </Card>
         {byMode.map((m) => (
-          <Card key={m.mode} bodyClassName="px-4 py-3" className="hidden lg:block">
-            <p className="text-[12.5px] text-muted">আজ — {m.mode}</p>
+          <Card key={m.label} bodyClassName="px-4 py-3" className="hidden lg:block">
+            <p className="text-[12.5px] text-muted">আজ — {m.label}</p>
             <p className="mt-0.5 font-display text-[19px] leading-tight">{formatTaka(m.total)}</p>
             <p className="text-[12px] text-muted">{toBnDigits(m.count)} টি</p>
           </Card>
@@ -123,7 +130,11 @@ export function ReceiptList() {
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const licence = licences.find((l) => l.id === r.licenceId)
+                  const source = r.source
+                  const licence =
+                    source.type === 'trade-licence'
+                      ? licences.find((l) => l.id === source.id)
+                      : undefined
                   return (
                     <tr key={r.id} className="border-b border-rule/50 last:border-0 hover:bg-forest-50/40">
                       <td className="px-3 py-2 align-top whitespace-nowrap font-medium">
@@ -139,7 +150,7 @@ export function ReceiptList() {
                       <td className="px-3 py-2 align-top">{r.payerName}</td>
                       <td className="px-3 py-2 align-top">
                         {licence ? (
-                          <Link to={`/trade-licence/${licence.id}`} className="text-forest-700 hover:underline">
+                          <Link to={`/office/trade-licence/${licence.id}`} className="text-forest-700 hover:underline">
                             {licence.business.nameBn}
                           </Link>
                         ) : (
@@ -147,8 +158,10 @@ export function ReceiptList() {
                         )}
                       </td>
                       <td className="px-3 py-2 align-top whitespace-nowrap">
-                        {r.mode}
-                        {r.txnRef && <span className="block text-[12px] text-muted">{toBnDigits(r.txnRef)}</span>}
+                        {r.mode ?? `অনলাইন — ${r.method ?? ''}`}
+                        {r.txnRef && (
+                          <span className="block text-[12px] text-muted">{toBnDigits(r.txnRef)}</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right align-top whitespace-nowrap">{formatTaka(r.total)}</td>
                       <td className="px-3 py-2 align-top">

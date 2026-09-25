@@ -9,10 +9,11 @@ import { WARDS, businessTypeOf } from '@/data/seed'
 import { formatDateBn, formatNumberBn, toBnDigits } from '@/lib/bn'
 import { currentFiscalYear, fiscalYearOptions } from '@/lib/fiscal'
 import { useStore } from '@/store/useStore'
+import { approvedAt, approvedBy, receiptFor } from '@/lib/records'
 
 const COLUMNS: LedgerColumn[] = [
   { key: 'serial', label: 'ক্রমিক নং', align: 'center' },
-  { key: 'licenceNo', label: 'লাইসেন্স নং' },
+  { key: 'registerNo', label: 'লাইসেন্স নং' },
   { key: 'date', label: 'তারিখ' },
   { key: 'business', label: 'প্রতিষ্ঠানের নাম ও ঠিকানা' },
   { key: 'owner', label: 'মালিক ও পিতার নাম' },
@@ -45,15 +46,15 @@ export function TradeLicenceRegister() {
     .reduce((sum, l) => sum + l.feeTotal, 0)
 
   const rows: LedgerRow[] = entries.map((l) => {
-    const receipt = receipts.find((r) => r.licenceId === l.id)
+    const receipt = receiptFor(receipts, l)
     return {
       id: l.id,
       cancelled: l.status === 'cancelled',
-      to: `/trade-licence/${l.id}`,
+      to: `/office/trade-licence/${l.id}`,
       cells: [
         toBnDigits(l.serial ?? ''),
-        toBnDigits(l.licenceNo ?? ''),
-        formatDateBn(l.approvedAt ?? l.createdAt),
+        toBnDigits(l.registerNo ?? ''),
+        formatDateBn(approvedAt(l) ?? l.createdAt),
         <>
           <span className="font-medium">{l.business.nameBn}</span>
           <span className="block text-[12px] text-muted">{toBnDigits(l.business.address)}</span>
@@ -66,8 +67,16 @@ export function TradeLicenceRegister() {
         toBnDigits(l.business.ward),
         formatNumberBn(l.feeTotal),
         receipt ? toBnDigits(receipt.receiptNo) : '—',
-        l.status === 'cancelled' ? `বাতিল — ${l.cancelReason ?? ''}` : l.status === 'approved' ? 'ফি আদায় বাকি' : 'ইস্যুকৃত',
-        l.approvedBy ?? '—',
+        l.status === 'cancelled'
+          ? `বাতিল — ${l.cancelled?.reason ?? ''}`
+          : l.kind === 'renewal'
+            ? l.status === 'approved'
+              ? 'নবায়ন — ফি আদায় বাকি'
+              : 'নবায়ন'
+            : l.status === 'approved'
+              ? 'ফি আদায় বাকি'
+              : 'ইস্যুকৃত',
+        approvedBy(l) ?? '—',
       ],
     }
   })

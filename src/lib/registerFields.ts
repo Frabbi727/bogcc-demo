@@ -2,6 +2,15 @@ import type { ReactNode } from 'react'
 
 import { bnToEnDigits, formatDateBn, toBnDigits } from '@/lib/bn'
 import type { RegisterField } from '@/registers/types'
+import type { FieldValue, Heir } from '@/types'
+
+/** Validates one heirs-table row; the table itself is validated row by row. */
+export function validateHeir(heir: Heir): string | undefined {
+  if (!heir.name.trim()) return 'ওয়ারিশের নাম পূরণ করুন।'
+  if (!heir.relation.trim()) return 'সম্পর্ক পূরণ করুন।'
+  if (!Number.isInteger(heir.age) || heir.age < 0 || heir.age > 120) return 'বয়স সঠিক নয়।'
+  return undefined
+}
 
 /** Validates one field value, returning a Bangla message or undefined. */
 export function validateField(field: RegisterField, raw: string): string | undefined {
@@ -34,10 +43,23 @@ export function normaliseField(field: RegisterField, raw: string): string | numb
 }
 
 /** Display form of a stored field value, in Bangla digits. */
-export function displayField(field: RegisterField | undefined, value: string | number | undefined): ReactNode {
+export function displayField(field: RegisterField | undefined, value: FieldValue | undefined): ReactNode {
   if (value === undefined || value === '' || value === null) return '—'
+  // The heirs table is a list of rows, not a scalar; the book shows a count.
+  if (Array.isArray(value)) {
+    return value.length ? `${toBnDigits(value.length)} জন` : '—'
+  }
   if (!field) return toBnDigits(String(value))
   if (field.type === 'date') return formatDateBn(String(value))
   if (field.type === 'ward') return toBnDigits(value)
+  if (field.type === 'photo') return 'ছবি আছে'
   return toBnDigits(String(value))
+}
+
+/** Plain-text form of a stored value, for CSV export. */
+export function plainField(field: RegisterField | undefined, value: FieldValue | undefined): string {
+  if (value === undefined || value === null || value === '') return ''
+  if (Array.isArray(value)) return value.map((h) => `${h.name} (${h.relation}, ${h.age})`).join('; ')
+  if (field?.type === 'photo') return 'ছবি আছে'
+  return String(value)
 }

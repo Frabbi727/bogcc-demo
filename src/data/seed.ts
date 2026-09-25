@@ -1,1000 +1,1157 @@
 /**
  * Seed data for the demo.
  *
- * EVERY person, business, NID and phone number here is invented. Only the
- * Bogura area names are real. Dates are fixed so the demo looks the same on
- * every machine, except the garbage trip log and the newest fee collection,
- * which are anchored to today so the daily dashboard cards are not empty.
+ * EVERY person, business, NID and phone number here is invented; only the Bogura
+ * area names are real. The data is generated **relative to the day the demo is
+ * shown**, so the dashboards are never empty and "today's collection" always has
+ * something in it. A seeded PRNG keyed on that date keeps it identical on every
+ * machine and across reloads of the same day.
  */
 
 import { fiscalYearOf } from '@/lib/fiscal'
+import {
+  certificateNo as certificateNoFor,
+  applicationNo,
+  holdingNo as holdingNoFor,
+  licenceNo as licenceNoFor,
+  receiptBookRef,
+  receiptNo as receiptNoFor,
+  registerSerialNo,
+  trackingNo as trackingNoFor,
+  txnId,
+} from '@/lib/ids'
+import { makeRandom, type Rng } from '@/lib/random'
+import { dueDate } from '@/lib/sla'
+import { REGISTERS, getRegister } from '@/registers'
 import type {
   AuditEntry,
   BusinessNature,
-  BusinessType,
+  Channel,
   FeeLine,
+  Heir,
+  Holding,
+  HoldingBill,
+  HoldingInstalment,
   Licence,
   LicenceStatus,
+  Notice,
+  Notification,
+  OnlineMethod,
+  Payment,
   PaymentMode,
+  PropertyType,
   Receipt,
   RegisterEntry,
+  RevenueHead,
   Role,
-  User,
+  HistoryStep,
 } from '@/types'
-
-export const WARDS: number[] = Array.from({ length: 21 }, (_, i) => i + 1)
-
-export const AREAS = [
-  'সাতমাথা',
-  'ঠনঠনিয়া',
-  'জলেশ্বরীতলা',
-  'মালতিনগর',
-  'চেলোপাড়া',
-  'সূত্রাপুর',
-  'নামাজগড়',
-  'কালিতলা',
-  'বাদুড়তলা',
-  'ফুলবাড়ি',
-  'কামারগাড়ি',
-  'রহমাননগর',
-]
-
-export const BUSINESS_NATURES: BusinessNature[] = ['একক', 'অংশীদারি', 'কোম্পানি']
-
-export const PAYMENT_MODES: PaymentMode[] = ['নগদ', 'বিকাশ', 'ব্যাংক']
-
-/** Fictional staff, one per role. */
-export const USERS: Record<Role, User> = {
-  operator: {
-    role: 'operator',
-    name: 'মোঃ রফিকুল ইসলাম',
-    title: 'ডাটা এন্ট্রি অপারেটর',
-    designation: 'রাজস্ব শাখা',
-  },
-  inspector: {
-    role: 'inspector',
-    name: 'শাহানা পারভীন',
-    title: 'লাইসেন্স পরিদর্শক',
-    designation: 'রাজস্ব শাখা',
-  },
-  officer: {
-    role: 'officer',
-    name: 'মোঃ আনিসুর রহমান',
-    title: 'লাইসেন্স অফিসার',
-    designation: 'রাজস্ব শাখা',
-  },
-  accounts: {
-    role: 'accounts',
-    name: 'সুমন কুমার দাস',
-    title: 'হিসাবরক্ষক / ক্যাশিয়ার',
-    designation: 'হিসাব শাখা',
-  },
-  electrician: {
-    role: 'electrician',
-    name: 'মোঃ জাহিদ হাসান',
-    title: 'ইলেকট্রিশিয়ান',
-    designation: 'বিদ্যুৎ শাখা',
-  },
-  conservancy: {
-    role: 'conservancy',
-    name: 'নাজমা বেগম',
-    title: 'পরিচ্ছন্নতা পরিদর্শক',
-    designation: 'পরিচ্ছন্নতা শাখা',
-  },
-  ceo: {
-    role: 'ceo',
-    name: 'ড. মোস্তাফিজুর রহমান',
-    title: 'প্রধান নির্বাহী কর্মকর্তা',
-    designation: 'প্রধান কার্যালয়',
-  },
-}
-
-export const ROLE_ORDER: Role[] = [
-  'operator',
-  'inspector',
-  'officer',
-  'accounts',
-  'electrician',
-  'conservancy',
-  'ceo',
-]
-
-/** Demo rates only (ডেমো হার) — not the real gazetted schedule. */
-export const BUSINESS_TYPES: BusinessType[] = [
-  { key: 'grocery', label: 'মুদি দোকান', licenceFee: 1200, signboardTax: 300 },
-  { key: 'pharmacy', label: 'ঔষধের দোকান', licenceFee: 2500, signboardTax: 500 },
-  { key: 'restaurant', label: 'রেস্তোরাঁ', licenceFee: 3500, signboardTax: 700 },
-  { key: 'clothing', label: 'কাপড়ের দোকান', licenceFee: 1800, signboardTax: 400 },
-  { key: 'electronics', label: 'ইলেকট্রনিক্স', licenceFee: 3000, signboardTax: 600 },
-  { key: 'sweets', label: 'দই-মিষ্টির দোকান', licenceFee: 2000, signboardTax: 450 },
-  { key: 'mobile-service', label: 'মোবাইল সার্ভিসিং', licenceFee: 1500, signboardTax: 350 },
-  { key: 'workshop', label: 'ওয়ার্কশপ', licenceFee: 2200, signboardTax: 500 },
-  { key: 'coaching', label: 'কোচিং সেন্টার', licenceFee: 2800, signboardTax: 550 },
-  { key: 'wholesale', label: 'পাইকারি ব্যবসা', licenceFee: 5000, signboardTax: 900 },
-]
-
-/** Fixed charge for the application form and the licence book. */
-export const FORM_AND_BOOK_FEE = 200
-
-export const VAT_RATE = 0.15
-
-export function businessTypeOf(key: string): BusinessType {
-  return BUSINESS_TYPES.find((t) => t.key === key) ?? BUSINESS_TYPES[0]
-}
-
-/** The four fee lines charged on every trade licence. */
-export function feeLinesFor(typeKey: string): FeeLine[] {
-  const t = businessTypeOf(typeKey)
-  return [
-    { label: 'লাইসেন্স ফি', amount: t.licenceFee },
-    { label: 'সাইনবোর্ড কর', amount: t.signboardTax },
-    { label: 'ভ্যাট (লাইসেন্স ফির ১৫%)', amount: Math.round(t.licenceFee * VAT_RATE) },
-    { label: 'আবেদন ফরম ও বই মূল্য', amount: FORM_AND_BOOK_FEE },
-  ]
-}
-
-export function feeTotalOf(lines: FeeLine[]): number {
-  return lines.reduce((sum, l) => sum + l.amount, 0)
-}
-
-/** Formats the paper receipt-book reference: 100 leaves per book. */
-export function receiptBookRef(no: number): { bookNo: number; pageNo: number } {
-  return { bookNo: Math.floor((no - 1) / 100) + 1, pageNo: ((no - 1) % 100) + 1 }
-}
-
-export function licenceNoFor(fy: string, serial: number): string {
-  return `BOGCC/TL/${fy}/${String(serial).padStart(5, '0')}`
-}
-
-export function registerSerialNo(prefix: string, fy: string, serial: number): string {
-  return `${prefix}/${fy}/${String(serial).padStart(4, '0')}`
-}
-
-export function appNoFor(fy: string, n: number): string {
-  return `APP/${fy}/${String(n).padStart(4, '0')}`
-}
-
-/** Local-time ISO string for `n` days before today, at a fixed clock time. */
-function daysAgo(n: number, time = '10:30:00'): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}T${time}`
-}
-
-/** Local-time ISO date (no clock) for `n` days before today. */
-function dateAgo(n: number): string {
-  return daysAgo(n).slice(0, 10)
-}
-
-/* ---------------- Trade licences ---------------- */
-
-interface RawLicence {
-  status: LicenceStatus
-  nameBn: string
-  nameEn: string
-  typeKey: string
-  nature: BusinessNature
-  area: string
-  ward: number
-  holdingNo: string
-  owner: [name: string, father: string, mother: string, nid: string, mobile: string]
-  created: string
-  verified?: string
-  verifyNote?: string
-  approved?: string
-  issued?: string
-  mode?: PaymentMode
-  txnRef?: string
-  cancelled?: string
-  cancelReason?: string
-}
+import { BUSINESS_TYPES, feeLinesFor, feeTotalOf, isLateRenewal } from './businessTypes'
+import {
+  BUSINESS_NAMES,
+  BUSINESS_NAMES_EN,
+  CLEANING_TEAMS,
+  DRIVERS,
+  FATHER_NAMES,
+  FEMALE_NAMES,
+  HEIR_RELATIONS,
+  MALE_NAMES,
+  MATERIALS,
+  MOTHER_NAMES,
+  ROADS,
+  SUPERVISORS,
+  TECHNICIANS,
+  VEHICLES,
+} from './names'
+import { charterDaysOf, fixedFeeOf } from './services'
+import { USERS } from './users'
+import { AREAS, WARDS } from './wards'
 
 /**
- * Listed in the order the paper register would have received them, so serials
- * follow approval order within each fiscal year.
+ * Re-exports for convenience. The definitions live in `users.ts`, `wards.ts` and
+ * `businessTypes.ts`; pages may import from either place.
  */
-const RAW_LICENCES: RawLicence[] = [
-  // ---- FY 2025-26: five issued licences ----
-  {
-    status: 'issued',
-    nameBn: 'মেসার্স রহমান স্টোর',
-    nameEn: 'Messrs Rahman Store',
-    typeKey: 'grocery',
-    nature: 'একক',
-    area: 'সাতমাথা',
-    ward: 5,
-    holdingNo: '১১২/ক',
-    owner: ['মোঃ মিজানুর রহমান', 'মোঃ আব্দুল হামিদ', 'রোকেয়া বেগম', '১৯৮৫৩৪৫৬৭৮', '০১৭১১২৩৪৫৬৭'],
-    created: '2025-08-04T10:15:00',
-    verified: '2025-08-07T12:40:00',
-    verifyNote: 'দোকান ও সাইনবোর্ড সরেজমিনে দেখা হয়েছে, তথ্য সঠিক পাওয়া গেছে।',
-    approved: '2025-08-11T11:05:00',
-    issued: '2025-08-11T15:20:00',
-    mode: 'নগদ',
-  },
-  {
-    status: 'issued',
-    nameBn: 'নূর ফার্মেসি',
-    nameEn: 'Noor Pharmacy',
-    typeKey: 'pharmacy',
-    nature: 'একক',
-    area: 'ঠনঠনিয়া',
-    ward: 8,
-    holdingNo: '৪৭/খ',
-    owner: ['ডাঃ নুরুল আমিন', 'মোঃ ইয়াকুব আলী', 'ফাতেমা খাতুন', '৪৭১২৯৮৩৪৫৬১২৩', '০১৮১৯৮৭৬৫৪৩'],
-    created: '2025-09-02T09:50:00',
-    verified: '2025-09-06T11:10:00',
-    verifyNote: 'ঔষধ প্রশাসনের ড্রাগ লাইসেন্সের কপি যাচাই করা হয়েছে।',
-    approved: '2025-09-09T10:30:00',
-    issued: '2025-09-10T12:05:00',
-    mode: 'বিকাশ',
-    txnRef: 'BKS8FQ2104',
-  },
-  {
-    status: 'issued',
-    nameBn: 'স্বাদ রেস্টুরেন্ট',
-    nameEn: 'Shad Restaurant',
-    typeKey: 'restaurant',
-    nature: 'অংশীদারি',
-    area: 'জলেশ্বরীতলা',
-    ward: 3,
-    holdingNo: '২০৫',
-    owner: ['মোঃ সেলিম উদ্দিন', 'মোঃ কামাল উদ্দিন', 'সুফিয়া বেগম', '৬৫২৩৪৫৬৭৮৯', '০১৯১২৩৩৪৪৫৫'],
-    created: '2025-10-12T11:20:00',
-    verified: '2025-10-16T13:00:00',
-    verifyNote: 'রান্নাঘরের পরিচ্ছন্নতা ও বর্জ্য ব্যবস্থাপনা সন্তোষজনক।',
-    approved: '2025-10-20T10:10:00',
-    issued: '2025-10-21T11:45:00',
-    mode: 'নগদ',
-  },
-  {
-    status: 'issued',
-    nameBn: 'তানিয়া বস্ত্রালয়',
-    nameEn: 'Tania Bastralaya',
-    typeKey: 'clothing',
-    nature: 'একক',
-    area: 'মালতিনগর',
-    ward: 11,
-    holdingNo: '৭৮/গ',
-    owner: ['তানিয়া আক্তার', 'মোঃ শফিকুল ইসলাম', 'নাসিমা আক্তার', '১৯৯১৭৬৫৪৩২১০৯৮৭৬', '০১৫৫৮৮৭৭৬৬৫'],
-    created: '2025-11-05T10:00:00',
-    verified: '2025-11-09T12:20:00',
-    verifyNote: 'ভাড়ার চুক্তিপত্র ও হোল্ডিং কর পরিশোধের রসিদ দেখা হয়েছে।',
-    approved: '2025-11-13T11:30:00',
-    issued: '2025-11-13T14:10:00',
-    mode: 'নগদ',
-  },
-  {
-    status: 'issued',
-    nameBn: 'চেলোপাড়া ইলেকট্রনিক্স',
-    nameEn: 'Chelopara Electronics',
-    typeKey: 'electronics',
-    nature: 'একক',
-    area: 'চেলোপাড়া',
-    ward: 14,
-    holdingNo: '৯',
-    owner: ['মোঃ শাহ আলম', 'মোঃ নুরুল হক', 'আমেনা বেগম', '৩৩৪৫৬৭৮৯০১২৩৪', '০১৭৭৬৬৫৫৪৪৩'],
-    created: '2025-12-01T09:40:00',
-    verified: '2025-12-04T11:55:00',
-    verifyNote: 'গুদাম ও প্রদর্শনী কক্ষে অগ্নিনির্বাপক ব্যবস্থা রয়েছে।',
-    approved: '2025-12-08T10:25:00',
-    issued: '2025-12-09T12:30:00',
-    mode: 'ব্যাংক',
-    txnRef: 'SBL/CHQ/442198',
-  },
+export { USERS, ROLE_ORDER, roleTitle, userFor } from './users'
+export { WARDS, AREAS, WARD_INFO, WARD_COUNT, wardInfo, COUNCILLOR_WARD } from './wards'
+export {
+  BUSINESS_TYPES,
+  BUSINESS_NATURES,
+  FORM_AND_BOOK_FEE,
+  VAT_RATE,
+  businessTypeOf,
+  feeLinesFor,
+  feeTotalOf,
+  isLateRenewal,
+} from './businessTypes'
+export { receiptBookRef, registerSerialNo } from '@/lib/ids'
 
-  // ---- FY 2026-27: six issued ----
-  {
-    status: 'issued',
-    nameBn: 'সূত্রাপুর মিষ্টান্ন ভাণ্ডার',
-    nameEn: 'Sutrapur Mistanna Bhandar',
-    typeKey: 'sweets',
-    nature: 'একক',
-    area: 'সূত্রাপুর',
-    ward: 6,
-    holdingNo: '৩৩',
-    owner: ['গোপাল চন্দ্র ঘোষ', 'নিমাই চন্দ্র ঘোষ', 'অঞ্জলি রানী ঘোষ', '৭৭১২৩৪৫৬৭৮', '০১৭১২৩৪৫৬৭৮'],
-    created: '2026-07-06T10:05:00',
-    verified: '2026-07-09T12:15:00',
-    verifyNote: 'দই তৈরির স্থান ও পানির ব্যবস্থা সরেজমিনে দেখা হয়েছে।',
-    approved: '2026-07-13T10:40:00',
-    issued: '2026-07-14T11:50:00',
-    mode: 'নগদ',
-  },
-  {
-    status: 'issued',
-    nameBn: 'হাসান মোবাইল কেয়ার',
-    nameEn: 'Hasan Mobile Care',
-    typeKey: 'mobile-service',
-    nature: 'একক',
-    area: 'নামাজগড়',
-    ward: 9,
-    holdingNo: '১২১',
-    owner: ['মোঃ হাসান মাহমুদ', 'মোঃ আবুল কালাম', 'রাশিদা বেগম', '১৯৯৪৮৮৭৭৬৬৫৫৪৪৩৩', '০১৬২২৩৩৪৪৫৫'],
-    created: '2026-07-20T09:30:00',
-    verified: '2026-07-23T11:40:00',
-    verifyNote: 'সার্ভিসিং যন্ত্রপাতি ও বৈদ্যুতিক সংযোগ যাচাই করা হয়েছে।',
-    approved: '2026-07-27T10:15:00',
-    issued: '2026-07-27T14:25:00',
-    mode: 'বিকাশ',
-    txnRef: 'BKS9TR4471',
-  },
-  {
-    status: 'issued',
-    nameBn: 'কালিতলা অটো ওয়ার্কশপ',
-    nameEn: 'Kalitala Auto Workshop',
-    typeKey: 'workshop',
-    nature: 'অংশীদারি',
-    area: 'কালিতলা',
-    ward: 17,
-    holdingNo: '৬৪/ক',
-    owner: ['মোঃ রুবেল মিয়া', 'মোঃ ছাত্তার মিয়া', 'জরিনা বেগম', '২২৩৪৫৬৭৮৯০১২৩', '০১৩১১২২৩৩৪৪'],
-    created: '2026-08-03T10:50:00',
-    verified: '2026-08-06T13:05:00',
-    verifyNote: 'রাস্তার উপর যন্ত্রাংশ না রাখার শর্তে সুপারিশ করা হলো।',
-    approved: '2026-08-10T11:00:00',
-    issued: '2026-08-11T12:35:00',
-    mode: 'নগদ',
-  },
-  {
-    status: 'issued',
-    nameBn: 'আলোকিত কোচিং সেন্টার',
-    nameEn: 'Alokito Coaching Centre',
-    typeKey: 'coaching',
-    nature: 'একক',
-    area: 'বাদুড়তলা',
-    ward: 2,
-    holdingNo: '১৫',
-    owner: ['মোছাঃ সুরাইয়া ইয়াসমিন', 'মোঃ লুৎফর রহমান', 'হালিমা খাতুন', '৫৫১২৩৪৫৬৭৮', '০১৭৩৪৫৫৬৬৭৭'],
-    created: '2026-08-17T09:45:00',
-    verified: '2026-08-20T11:30:00',
-    verifyNote: 'শ্রেণিকক্ষের ধারণক্ষমতা ও সিঁড়ির প্রস্থ পরিদর্শন করা হয়েছে।',
-    approved: '2026-08-24T10:20:00',
-    issued: '2026-08-25T11:15:00',
-    mode: 'বিকাশ',
-    txnRef: 'BKS1LM8830',
-  },
-  {
-    status: 'issued',
-    nameBn: 'ফুলবাড়ি ট্রেডার্স',
-    nameEn: 'Fulbari Traders',
-    typeKey: 'wholesale',
-    nature: 'কোম্পানি',
-    area: 'ফুলবাড়ি',
-    ward: 19,
-    holdingNo: '৩০১',
-    owner: ['মোঃ জাকির হোসেন', 'মোঃ মোকছেদ আলী', 'ছবিরন নেছা', '৪৪৫৫৬৬৭৭৮৮৯৯০', '০১৮৭৭৬৬৫৫৪৪'],
-    created: '2026-09-01T10:10:00',
-    verified: '2026-09-04T12:50:00',
-    verifyNote: 'গুদামের আয়তন ও পণ্য পরিবহনের পথ যাচাই করা হয়েছে।',
-    approved: '2026-09-08T11:25:00',
-    issued: '2026-09-09T13:40:00',
-    mode: 'ব্যাংক',
-    txnRef: 'JBL/PO/771204',
-  },
-  {
-    status: 'issued',
-    nameBn: 'মায়ের দোয়া জেনারেল স্টোর',
-    nameEn: 'Mayer Doa General Store',
-    typeKey: 'grocery',
-    nature: 'একক',
-    area: 'কামারগাড়ি',
-    ward: 12,
-    holdingNo: '৮৮',
-    owner: ['মোঃ ইলিয়াস আলী', 'মোঃ সোবহান আলী', 'মরিয়ম বেগম', '৬৬১২৩৪৫৬৭৮', '০১৯৪৪৩৩২২১১'],
-    created: '2026-09-14T09:55:00',
-    verified: '2026-09-17T11:20:00',
-    verifyNote: 'পণ্যের মেয়াদ ও ওজন যন্ত্রের সনদ দেখা হয়েছে।',
-    approved: '2026-09-21T10:35:00',
-    issued: daysAgo(0, '11:40:00'),
-    mode: 'নগদ',
-  },
+export const PAYMENT_MODES: PaymentMode[] = ['নগদ', 'বিকাশ', 'ব্যাংক']
+export const ONLINE_METHODS: OnlineMethod[] = ['bKash', 'Nagad', 'কার্ড']
+export const PROPERTY_TYPES: PropertyType[] = ['আবাসিক', 'বাণিজ্যিক', 'মিশ্র']
 
-  // ---- FY 2026-27: two approved, awaiting fee collection ----
-  {
-    status: 'approved',
-    nameBn: 'রহমাননগর ফার্মেসি',
-    nameEn: 'Rahmannagar Pharmacy',
-    typeKey: 'pharmacy',
-    nature: 'একক',
-    area: 'রহমাননগর',
-    ward: 20,
-    holdingNo: '৫৫',
-    owner: ['মোঃ সাইফুল ইসলাম', 'মোঃ আব্দুল মালেক', 'রেহানা পারভীন', '৮৮১২৩৪৫৬৭৮', '০১৭৫৫৪৪৩৩২২'],
-    created: '2026-09-15T10:25:00',
-    verified: '2026-09-18T12:10:00',
-    verifyNote: 'ফ্রিজ ও ঔষধ সংরক্ষণের তাপমাত্রা ঠিক আছে।',
-    approved: '2026-09-22T11:05:00',
-  },
-  {
-    status: 'approved',
-    nameBn: 'সাতমাথা কাবাব ঘর',
-    nameEn: 'Satmatha Kabab Ghar',
-    typeKey: 'restaurant',
-    nature: 'অংশীদারি',
-    area: 'সাতমাথা',
-    ward: 5,
-    holdingNo: '১১৯',
-    owner: ['মোঃ শাকিল আহমেদ', 'মোঃ বেলাল হোসেন', 'নূরজাহান বেগম', '৯৯১২৩৪৫৬৭৮৯০১২৩', '০১৬৮৮৭৭৬৬৫৫'],
-    created: '2026-09-16T11:15:00',
-    verified: '2026-09-19T13:25:00',
-    verifyNote: 'ধোঁয়া নির্গমনের চিমনি ও গ্যাস সিলিন্ডার সংরক্ষণ সঠিক।',
-    approved: '2026-09-23T10:50:00',
-  },
-
-  // ---- FY 2026-27: two verified, awaiting approval ----
-  {
-    status: 'verified',
-    nameBn: 'ঠনঠনিয়া বস্ত্র বিতান',
-    nameEn: 'Thonthonia Bastra Bitan',
-    typeKey: 'clothing',
-    nature: 'একক',
-    area: 'ঠনঠনিয়া',
-    ward: 8,
-    holdingNo: '৭১',
-    owner: ['মোঃ আরিফুল হক', 'মোঃ মোজাম্মেল হক', 'শাহিদা বেগম', '৩১১২৩৪৫৬৭৮', '০১৭৯৯৮৮৭৭৬৬'],
-    created: '2026-09-18T10:05:00',
-    verified: '2026-09-22T12:35:00',
-    verifyNote: 'দোকানের পরিমাপ ও সাইনবোর্ডের আয়তন লিপিবদ্ধ করা হয়েছে।',
-  },
-  {
-    status: 'verified',
-    nameBn: 'দিগন্ত ইলেকট্রনিক্স',
-    nameEn: 'Digonto Electronics',
-    typeKey: 'electronics',
-    nature: 'একক',
-    area: 'জলেশ্বরীতলা',
-    ward: 3,
-    holdingNo: '২৪০',
-    owner: ['মোঃ নাজমুল হুদা', 'মোঃ আফসার আলী', 'সালেহা খাতুন', '২৭১২৩৪৫৬৭৮৯০১২৩', '০১৮২২১১৩৩৪৪'],
-    created: '2026-09-19T09:35:00',
-    verified: '2026-09-23T11:45:00',
-    verifyNote: 'বৈদ্যুতিক লোড ও আর্থিং ব্যবস্থা পরীক্ষা করা হয়েছে।',
-  },
-
-  // ---- FY 2026-27: two freshly submitted ----
-  {
-    status: 'submitted',
-    nameBn: 'মালতিনগর মোবাইল হাব',
-    nameEn: 'Maltinagar Mobile Hub',
-    typeKey: 'mobile-service',
-    nature: 'একক',
-    area: 'মালতিনগর',
-    ward: 11,
-    holdingNo: '৯৬',
-    owner: ['মোঃ তানভীর হাসান', 'মোঃ আলতাফ হোসেন', 'রুমা বেগম', '৪৯১২৩৪৫৬৭৮', '০১৭১৮৮৮৯৯০০'],
-    created: '2026-09-22T10:45:00',
-  },
-  {
-    status: 'submitted',
-    nameBn: 'নবীন কোচিং একাডেমি',
-    nameEn: 'Nobin Coaching Academy',
-    typeKey: 'coaching',
-    nature: 'একক',
-    area: 'চেলোপাড়া',
-    ward: 14,
-    holdingNo: '২৭',
-    owner: ['মোছাঃ ফারজানা ইয়াসমিন', 'মোঃ হাবিবুর রহমান', 'জাহানারা বেগম', '৫৮১২৩৪৫৬৭৮৯০১২৩', '০১৫৬৬৫৫৪৪৩৩'],
-    created: '2026-09-24T09:20:00',
-  },
-
-  // ---- FY 2026-27: one cancelled at the verification stage (so it holds no serial) ----
-  {
-    status: 'cancelled',
-    nameBn: 'চেলোপাড়া মোটর ওয়ার্কশপ',
-    nameEn: 'Chelopara Motor Workshop',
-    typeKey: 'workshop',
-    nature: 'একক',
-    area: 'চেলোপাড়া',
-    ward: 14,
-    holdingNo: '৫২',
-    owner: ['মোঃ বাবুল আক্তার', 'মোঃ দেলোয়ার হোসেন', 'হাসনা হেনা', '৬১১২৩৪৫৬৭৮', '০১৩৯৯০০১১২২'],
-    created: '2026-08-26T10:30:00',
-    verified: '2026-08-30T12:05:00',
-    verifyNote: 'আবেদনে উল্লেখিত হোল্ডিং নম্বরে উক্ত প্রতিষ্ঠান পাওয়া যায়নি।',
-    cancelled: '2026-09-02T11:15:00',
-    cancelReason:
-      'আবেদনে উল্লেখিত হোল্ডিং নম্বরের সাথে মাঠ পর্যায়ের তথ্যের অসঙ্গতি পাওয়া গেছে। সংশোধিত কাগজপত্রসহ পুনরায় আবেদন করতে হবে।',
-  },
-]
-
-/* ---------------- Street light repairs ---------------- */
-
-interface RawStreetLight {
-  poleNo: string
-  ward: number
-  road: string
-  faultType: string
-  complaintDate: string
-  complainant: string
-  complainantMobile: string
-  technician?: string
-  repairDate?: string
-  materials?: string
-  remarks?: string
-  status: string
-  /** When each status was reached, for the audit trail. */
-  assignedAt?: string
-  repairedAt?: string
-}
-
-const RAW_STREETLIGHTS: RawStreetLight[] = [
-  {
-    poleNo: 'SM-014', ward: 5, road: 'সাতমাথা প্রধান সড়ক', faultType: 'বাতি নষ্ট',
-    complaintDate: '2026-07-08', complainant: 'মোঃ আব্দুল বারিক', complainantMobile: '০১৭১১৪৪৫৫৬৬',
-    technician: 'মোঃ সোহেল রানা', repairDate: '2026-07-11', materials: 'এলইডি বাতি ৫০ওয়াট ১টি',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-07-09T11:20:00', repairedAt: '2026-07-11T16:10:00',
-  },
-  {
-    poleNo: 'TH-031', ward: 8, road: 'ঠনঠনিয়া বাজার রোড', faultType: 'তার ছেঁড়া',
-    complaintDate: '2026-07-15', complainant: 'সাবিনা ইয়াসমিন', complainantMobile: '০১৮২২৩৩৪৪৫৫',
-    technician: 'মোঃ কামরুল ইসলাম', repairDate: '2026-07-19', materials: 'তার ২০ মিটার, টেপ ২টি',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-07-16T10:40:00', repairedAt: '2026-07-19T15:30:00',
-  },
-  {
-    poleNo: 'JL-007', ward: 3, road: 'জলেশ্বরীতলা স্কুল রোড', faultType: 'সুইচ নষ্ট',
-    complaintDate: '2026-07-24', complainant: 'মোঃ রেজাউল করিম', complainantMobile: '০১৯১১২২৩৩৪৪',
-    technician: 'মোঃ সোহেল রানা', repairDate: '2026-07-26', materials: 'সুইচ ১টি',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-07-25T09:50:00', repairedAt: '2026-07-26T14:20:00',
-  },
-  {
-    poleNo: 'ML-022', ward: 11, road: 'মালতিনগর মেইন রোড', faultType: 'খুঁটি হেলে গেছে',
-    complaintDate: '2026-08-02', complainant: 'মোঃ ফরহাদ হোসেন', complainantMobile: '০১৭৭৩৩৪৪৫৫৬',
-    technician: 'মোঃ নজরুল ইসলাম', repairDate: '2026-08-08', materials: 'সিমেন্ট ২ ব্যাগ, খুঁটি সোজাকরণ',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-08-03T11:00:00', repairedAt: '2026-08-08T17:00:00',
-    remarks: 'খুঁটির গোড়ায় নতুন ঢালাই দেওয়া হয়েছে।',
-  },
-  {
-    poleNo: 'CH-045', ward: 14, road: 'চেলোপাড়া ব্রিজ রোড', faultType: 'বাতি নষ্ট',
-    complaintDate: '2026-08-09', complainant: 'মোছাঃ রোকসানা বেগম', complainantMobile: '০১৬৫৫৬৬৭৭৮৮',
-    technician: 'মোঃ কামরুল ইসলাম', repairDate: '2026-08-12', materials: 'এলইডি বাতি ৩০ওয়াট ২টি',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-08-10T10:15:00', repairedAt: '2026-08-12T15:45:00',
-  },
-  {
-    poleNo: 'SU-018', ward: 6, road: 'সূত্রাপুর কলোনি রোড', faultType: 'বাতি নষ্ট',
-    complaintDate: '2026-08-18', complainant: 'দীপক কুমার সাহা', complainantMobile: '০১৭১২২১১৩৩৪',
-    technician: 'মোঃ সোহেল রানা', repairDate: '2026-08-21', materials: 'এলইডি বাতি ৫০ওয়াট ১টি, হোল্ডার ১টি',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-08-19T09:30:00', repairedAt: '2026-08-21T16:35:00',
-  },
-  {
-    poleNo: 'NM-009', ward: 9, road: 'নামাজগড় কবরস্থান রোড', faultType: 'তার ছেঁড়া',
-    complaintDate: '2026-08-27', complainant: 'মোঃ জহুরুল হক', complainantMobile: '০১৮৮৮৭৭৬৬৫৫',
-    technician: 'মোঃ নজরুল ইসলাম', repairDate: '2026-09-01', materials: 'তার ৩৫ মিটার',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-08-28T11:45:00', repairedAt: '2026-09-01T15:05:00',
-  },
-  {
-    poleNo: 'KL-033', ward: 17, road: 'কালিতলা হাট রোড', faultType: 'সুইচ নষ্ট',
-    complaintDate: '2026-09-03', complainant: 'মোঃ আনোয়ার হোসেন', complainantMobile: '০১৩৩৪৪৫৫৬৬৭',
-    technician: 'মোঃ কামরুল ইসলাম', repairDate: '2026-09-05', materials: 'সুইচ ১টি, ফিউজ ২টি',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-09-04T10:20:00', repairedAt: '2026-09-05T14:50:00',
-  },
-  {
-    poleNo: 'BD-012', ward: 2, road: 'বাদুড়তলা মসজিদ রোড', faultType: 'বাতি নষ্ট',
-    complaintDate: '2026-09-10', complainant: 'মোঃ সাইদুর রহমান', complainantMobile: '০১৭৪৪৫৫৬৬৭৭',
-    technician: 'মোঃ সোহেল রানা', repairDate: '2026-09-14', materials: 'এলইডি বাতি ৩০ওয়াট ১টি',
-    status: 'মেরামত সম্পন্ন', assignedAt: '2026-09-11T09:40:00', repairedAt: '2026-09-14T16:20:00',
-  },
-  {
-    poleNo: 'FB-027', ward: 19, road: 'ফুলবাড়ি বাইপাস', faultType: 'খুঁটি হেলে গেছে',
-    complaintDate: '2026-09-12', complainant: 'মোঃ মোস্তাক আহমেদ', complainantMobile: '০১৯৬৬৭৭৮৮৯৯',
-    technician: 'মোঃ নজরুল ইসলাম', status: 'মিস্ত্রি নিযুক্ত', assignedAt: '2026-09-13T10:10:00',
-    remarks: 'ভারী যন্ত্রপাতির প্রয়োজন, বিদ্যুৎ বিভাগের সহায়তা চাওয়া হয়েছে।',
-  },
-  {
-    poleNo: 'KG-005', ward: 12, road: 'কামারগাড়ি রেলগেট রোড', faultType: 'তার ছেঁড়া',
-    complaintDate: '2026-09-16', complainant: 'মোছাঃ শিরিনা আক্তার', complainantMobile: '০১৭৮৮৯৯০০১১',
-    technician: 'মোঃ কামরুল ইসলাম', status: 'মিস্ত্রি নিযুক্ত', assignedAt: '2026-09-17T11:30:00',
-  },
-  {
-    poleNo: 'RN-041', ward: 20, road: 'রহমাননগর স্কুল রোড', faultType: 'বাতি নষ্ট',
-    complaintDate: '2026-09-19', complainant: 'মোঃ হাফিজুর রহমান', complainantMobile: '০১৫৫৪৪৩৩২২১',
-    technician: 'মোঃ সোহেল রানা', status: 'মিস্ত্রি নিযুক্ত', assignedAt: '2026-09-20T10:05:00',
-  },
-  {
-    poleNo: 'SM-029', ward: 5, road: 'সাতমাথা পোস্ট অফিস রোড', faultType: 'সুইচ নষ্ট',
-    complaintDate: '2026-09-21', complainant: 'মোঃ জামাল উদ্দিন', complainantMobile: '০১৬১১২২৩৩৪৪',
-    status: 'অভিযোগ গৃহীত',
-  },
-  {
-    poleNo: 'TH-050', ward: 8, road: 'ঠনঠনিয়া পুকুরপাড় রোড', faultType: 'বাতি নষ্ট',
-    complaintDate: '2026-09-23', complainant: 'অরুণ কুমার দত্ত', complainantMobile: '০১৭০০১১২২৩৩',
-    status: 'অভিযোগ গৃহীত',
-  },
-  {
-    poleNo: 'JL-019', ward: 3, road: 'জলেশ্বরীতলা হাসপাতাল রোড', faultType: 'তার ছেঁড়া',
-    complaintDate: '2026-09-24', complainant: 'মোছাঃ নাসরিন সুলতানা', complainantMobile: '০১৮৫৫৬৬৭৭৮৮',
-    status: 'অভিযোগ গৃহীত',
-    remarks: 'বৃষ্টির কারণে ঝুঁকিপূর্ণ, দ্রুত ব্যবস্থা প্রয়োজন।',
-  },
-]
-
-/* ---------------- Garbage vehicle trips ---------------- */
-
-interface RawTrip {
-  daysBack: number
-  vehicleNo: string
-  driver: string
-  ward: number
-  trips: number
-  dumpingSite: string
-  fuel: number
-  supervisor: string
-  status: string
-}
-
-const DUMPING_SITES = [
-  'ফুলবাড়ি ডাম্পিং স্টেশন',
-  'নামাজগড় ট্রান্সফার পয়েন্ট',
-  'কামারগাড়ি ল্যান্ডফিল',
-]
-
-const RAW_TRIPS: RawTrip[] = [
-  { daysBack: 4, vehicleNo: 'বগুড়া-ট-১১-০৪৫২', driver: 'মোঃ আলমগীর হোসেন', ward: 5, trips: 4, dumpingSite: DUMPING_SITES[0], fuel: 18, supervisor: 'মোঃ শফিকুল ইসলাম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 4, vehicleNo: 'বগুড়া-ট-১১-০৭৮১', driver: 'মোঃ রফিক মিয়া', ward: 8, trips: 3, dumpingSite: DUMPING_SITES[1], fuel: 15, supervisor: 'মোঃ শফিকুল ইসলাম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 4, vehicleNo: 'বগুড়া-ট-১১-০৩১৯', driver: 'মোঃ সুমন আলী', ward: 14, trips: 5, dumpingSite: DUMPING_SITES[2], fuel: 22, supervisor: 'আব্দুর রহিম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 3, vehicleNo: 'বগুড়া-ট-১১-০৪৫২', driver: 'মোঃ আলমগীর হোসেন', ward: 3, trips: 4, dumpingSite: DUMPING_SITES[0], fuel: 19, supervisor: 'মোঃ শফিকুল ইসলাম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 3, vehicleNo: 'বগুড়া-ট-১১-০৯৬৪', driver: 'মোঃ বাদশা মিয়া', ward: 11, trips: 3, dumpingSite: DUMPING_SITES[1], fuel: 14, supervisor: 'আব্দুর রহিম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 3, vehicleNo: 'বগুড়া-ট-১১-০৭৮১', driver: 'মোঃ রফিক মিয়া', ward: 17, trips: 4, dumpingSite: DUMPING_SITES[2], fuel: 20, supervisor: 'মোঃ শফিকুল ইসলাম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 2, vehicleNo: 'বগুড়া-ট-১১-০৩১৯', driver: 'মোঃ সুমন আলী', ward: 6, trips: 5, dumpingSite: DUMPING_SITES[0], fuel: 23, supervisor: 'আব্দুর রহিম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 2, vehicleNo: 'বগুড়া-ট-১১-০৪৫২', driver: 'মোঃ আলমগীর হোসেন', ward: 9, trips: 3, dumpingSite: DUMPING_SITES[1], fuel: 16, supervisor: 'মোঃ শফিকুল ইসলাম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 2, vehicleNo: 'বগুড়া-ট-১১-০৯৬৪', driver: 'মোঃ বাদশা মিয়া', ward: 19, trips: 4, dumpingSite: DUMPING_SITES[2], fuel: 21, supervisor: 'আব্দুর রহিম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 1, vehicleNo: 'বগুড়া-ট-১১-০৭৮১', driver: 'মোঃ রফিক মিয়া', ward: 2, trips: 4, dumpingSite: DUMPING_SITES[0], fuel: 18, supervisor: 'মোঃ শফিকুল ইসলাম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 1, vehicleNo: 'বগুড়া-ট-১১-০৩১৯', driver: 'মোঃ সুমন আলী', ward: 12, trips: 5, dumpingSite: DUMPING_SITES[1], fuel: 24, supervisor: 'আব্দুর রহিম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 1, vehicleNo: 'বগুড়া-ট-১১-০৪৫২', driver: 'মোঃ আলমগীর হোসেন', ward: 20, trips: 3, dumpingSite: DUMPING_SITES[2], fuel: 15, supervisor: 'মোঃ শফিকুল ইসলাম', status: 'সুপারভাইজার যাচাইকৃত' },
-  { daysBack: 0, vehicleNo: 'বগুড়া-ট-১১-০৯৬৪', driver: 'মোঃ বাদশা মিয়া', ward: 5, trips: 4, dumpingSite: DUMPING_SITES[0], fuel: 19, supervisor: 'আব্দুর রহিম', status: 'এন্ট্রি' },
-  { daysBack: 0, vehicleNo: 'বগুড়া-ট-১১-০৭৮১', driver: 'মোঃ রফিক মিয়া', ward: 14, trips: 3, dumpingSite: DUMPING_SITES[1], fuel: 17, supervisor: 'মোঃ শফিকুল ইসলাম', status: 'এন্ট্রি' },
-  { daysBack: 0, vehicleNo: 'বগুড়া-ট-১১-০৩১৯', driver: 'মোঃ সুমন আলী', ward: 8, trips: 4, dumpingSite: DUMPING_SITES[2], fuel: 20, supervisor: 'আব্দুর রহিম', status: 'এন্ট্রি' },
-]
-
-/* ---------------- Builder ---------------- */
-
-export interface SeedData {
-  licences: Licence[]
-  receipts: Receipt[]
-  entries: RegisterEntry[]
-  /** `<sequence key>` -> last used number. Serials never skip a number. */
-  sequences: Record<string, number>
-  audit: AuditEntry[]
-}
+/** The mobile number the presenter uses to demonstrate citizen tracking. */
+export const DEMO_CITIZEN_MOBILE = '01700000000'
 
 export const SEQ = {
+  tracking: (year: number) => `tracking-${year}`,
   app: (fy: string) => `app-${fy}`,
   licence: (fy: string) => `TL-${fy}`,
   receipt: (fy: string) => `receipt-${fy}`,
   register: (prefix: string, fy: string) => `${prefix}-${fy}`,
+  certificate: (fy: string) => `cert-${fy}`,
 }
 
-const pad = (n: number, w = 3) => String(n).padStart(w, '0')
+export interface SeedData {
+  /** The day the data was generated, so the UI can say how fresh it is. */
+  seedDate: string
+  licences: Licence[]
+  entries: RegisterEntry[]
+  holdings: Holding[]
+  payments: Payment[]
+  receipts: Receipt[]
+  notifications: Notification[]
+  notices: Notice[]
+  audit: AuditEntry[]
+  /** `<sequence key>` -> last used number. Serials never skip a number. */
+  sequences: Record<string, number>
+}
 
-/**
- * Builds the whole demo dataset. Serials are allocated in three ordered passes
- * — application numbers by creation date, register serials by approval date,
- * receipt numbers by collection date — so each sequence is gapless and matches
- * the order the paper book would have been written in.
- */
-export function buildSeed(): SeedData {
-  const licences = new Map<string, Licence>()
-  const receipts: Receipt[] = []
-  const entries: RegisterEntry[] = []
-  const audit: AuditEntry[] = []
+/* ---------- date helpers ---------- */
+
+const pad = (n: number, w = 2) => String(n).padStart(w, '0')
+
+/** Local-time ISO string; no `Z`, so a calendar day never shifts by timezone. */
+function iso(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function dateOnly(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function shift(from: string, days: number, hour?: number, minute?: number): string {
+  const d = new Date(from)
+  d.setDate(d.getDate() + days)
+  if (hour !== undefined) d.setHours(hour, minute ?? 0, 0, 0)
+  return iso(d)
+}
+
+/* ---------- builder ---------- */
+
+export function buildSeed(today: Date = new Date()): SeedData {
+  const rng = makeRandom(`bogcc-${dateOnly(today)}`)
+
   const sequences: Record<string, number> = {}
-
-  let auditCount = 0
-  function log(e: Omit<AuditEntry, 'id'>) {
-    auditCount += 1
-    audit.push({ id: `au${pad(auditCount, 4)}`, ...e })
-  }
-
-  function next(key: string): number {
+  const nextSeq = (key: string): number => {
     sequences[key] = (sequences[key] ?? 0) + 1
     return sequences[key]
   }
 
-  const rows = RAW_LICENCES.map((r, i) => ({ raw: r, id: `tl${pad(i + 1)}` }))
+  const licences: Licence[] = []
+  const entries: RegisterEntry[] = []
+  const holdings: Holding[] = []
+  const payments: Payment[] = []
+  const receipts: Receipt[] = []
+  const notifications: Notification[] = []
+  const notices: Notice[] = []
+  const audit: AuditEntry[] = []
 
-  // Pass 1 — application numbers and the base record, in submission order.
-  for (const { raw, id } of [...rows].sort((a, b) => a.raw.created.localeCompare(b.raw.created))) {
-    const fy = fiscalYearOf(raw.created)
-    const feeLines = feeLinesFor(raw.typeKey)
-    const licence: Licence = {
-      id,
-      appNo: appNoFor(fy, next(SEQ.app(fy))),
-      status: raw.status,
-      fiscalYear: fy,
-      business: {
-        nameBn: raw.nameBn,
-        nameEn: raw.nameEn,
-        typeKey: raw.typeKey,
-        nature: raw.nature,
-        address: `${raw.area}, হোল্ডিং ${raw.holdingNo}, ওয়ার্ড ${raw.ward}, বগুড়া`,
-        area: raw.area,
-        ward: raw.ward,
-        holdingNo: raw.holdingNo,
-      },
-      owner: {
-        name: raw.owner[0],
-        fatherName: raw.owner[1],
-        motherName: raw.owner[2],
-        nid: raw.owner[3],
-        mobile: raw.owner[4],
-      },
-      feeLines,
-      feeTotal: feeTotalOf(feeLines),
-      createdAt: raw.created,
-      createdBy: USERS.operator.name,
+  let auditCount = 0
+  function log(e: Omit<AuditEntry, 'id'>) {
+    auditCount += 1
+    audit.push({ id: `au${pad(auditCount, 5)}`, ...e })
+  }
+
+  let smsCount = 0
+  function sms(mobile: string, text: string, at: string, trackingNo?: string) {
+    smsCount += 1
+    notifications.push({
+      id: `sm${pad(smsCount, 5)}`,
+      mobile,
+      text,
+      at,
+      trackingNo,
+      // Older messages are treated as already read.
+      read: new Date(at).getTime() < today.getTime() - 3 * 86400_000,
+    })
+  }
+
+  /** A day offset in the past, at a plausible office hour. */
+  function pastDay(minDaysAgo: number, maxDaysAgo: number): string {
+    const days = rng.int(minDaysAgo, maxDaysAgo)
+    const d = new Date(today)
+    d.setDate(d.getDate() - days)
+    d.setHours(rng.int(10, 16), rng.int(0, 59), 0, 0)
+    return iso(d)
+  }
+
+  function mobile(): string {
+    const prefix = rng.pick(['013', '014', '015', '016', '017', '018', '019'])
+    return prefix + String(rng.int(10_000_000, 99_999_999))
+  }
+
+  function nid(): string {
+    return String(rng.int(1_000_000_000, 9_999_999_999))
+  }
+
+  function trackingFor(at: string): string {
+    const year = new Date(at).getFullYear()
+    return trackingNoFor(year, nextSeq(SEQ.tracking(year)))
+  }
+
+  /* ---------- payment events, collected then numbered in time order ---------- */
+
+  interface PayEvent {
+    at: string
+    head: RevenueHead
+    channel: Channel
+    purpose: string
+    payerName: string
+    payerMobile: string
+    feeLines: FeeLine[]
+    total: number
+    mode?: PaymentMode
+    method?: OnlineMethod
+    target: Payment['target']
+    source: Receipt['source']
+    /** Writes the allocated ids back onto whatever record this paid for. */
+    link: (paymentId: string, receiptId: string) => void
+  }
+
+  const payEvents: PayEvent[] = []
+
+  /**
+   * How many still-open records may be past their charter deadline. The spec wants
+   * a handful — enough to demonstrate the overdue list, not so many that the office
+   * looks broken. Budgeted per area, because licences are generated first and would
+   * otherwise use the lot, leaving the complaint registers with none to show.
+   */
+  const overdueBudget = { licence: rng.int(2, 3), entry: rng.int(3, 5) }
+
+  /**
+   * Creation date for a record that is still open. Most are recent enough to be
+   * comfortably inside the charter; a budgeted few are backdated past it.
+   */
+  function openCreatedAt(serviceKey: string, area: 'licence' | 'entry'): string {
+    const charter = Math.max(1, charterDaysOf(serviceKey))
+    if (overdueBudget[area] > 0 && rng.chance(0.35)) {
+      overdueBudget[area] -= 1
+      return pastDay(charter + 6, charter + 16)
     }
-    licences.set(id, licence)
-
-    log({
-      at: raw.created,
-      userName: USERS.operator.name,
-      role: 'operator',
-      action: 'আবেদন গ্রহণ',
-      recordType: 'trade-licence',
-      recordKey: 'trade-licence',
-      recordId: id,
-      recordLabel: `${raw.nameBn} (${licence.appNo})`,
-      note: `নতুন ট্রেড লাইসেন্স আবেদন গ্রহণ করা হয়েছে। ব্যবসার ধরন: ${businessTypeOf(raw.typeKey).label}।`,
-    })
+    return pastDay(0, Math.max(1, charter - 1))
   }
 
-  // Field verification.
-  for (const { raw, id } of [...rows]
-    .filter((r) => r.raw.verified)
-    .sort((a, b) => a.raw.verified!.localeCompare(b.raw.verified!))) {
-    const licence = licences.get(id)!
-    licence.verifiedAt = raw.verified
-    licence.verifiedBy = USERS.inspector.name
-    licence.verificationNote = raw.verifyNote
-    log({
-      at: raw.verified!,
-      userName: USERS.inspector.name,
-      role: 'inspector',
-      action: 'মাঠ যাচাই সম্পন্ন',
-      recordType: 'trade-licence',
-      recordKey: 'trade-licence',
-      recordId: id,
-      recordLabel: `${raw.nameBn} (${licence.appNo})`,
-      note: raw.verifyNote,
-      changes: [{ field: 'অবস্থা', before: 'আবেদন জমা', after: 'যাচাইকৃত' }],
-    })
+  /* ================= Trade licences ================= */
+
+  // Counts chosen so every status tab and both kinds have something to show.
+  const LICENCE_PLAN: { status: LicenceStatus; count: number }[] = [
+    { status: 'issued', count: 26 },
+    { status: 'approved', count: 5 },
+    { status: 'verified', count: 5 },
+    { status: 'submitted', count: 7 },
+    { status: 'cancelled', count: 2 },
+  ]
+
+  interface LicenceDraft {
+    licence: Licence
+    approvedAt?: string
+    paidAt?: string
   }
 
-  // Pass 2 — approval assigns the register serial and the licence number.
-  for (const { raw, id } of [...rows]
-    .filter((r) => r.raw.approved)
-    .sort((a, b) => a.raw.approved!.localeCompare(b.raw.approved!))) {
-    const licence = licences.get(id)!
-    const serial = next(SEQ.licence(licence.fiscalYear))
+  const licenceDrafts: LicenceDraft[] = []
+  let licenceIndex = 0
+
+  for (const plan of LICENCE_PLAN) {
+    for (let i = 0; i < plan.count; i += 1) {
+      licenceIndex += 1
+      const status = plan.status
+      const kind: Licence['kind'] = rng.chance(0.3) ? 'renewal' : 'new'
+      const serviceKey = kind === 'renewal' ? 'tl-renew' : 'tl-new'
+      const channel: Channel = rng.chance(0.4) ? 'online' : 'office'
+
+      // Issued licences spread across the last 14 months; open ones are recent,
+      // except a few deliberately left old so the SLA list is not empty.
+      const createdAt =
+        status === 'issued'
+          ? pastDay(2, 420)
+          : status === 'cancelled'
+            ? pastDay(30, 200)
+            : openCreatedAt(serviceKey, 'licence')
+
+      const fiscalYear = fiscalYearOf(createdAt)
+      const type = rng.pick(BUSINESS_TYPES)
+      const nameBn = rng.pick(BUSINESS_NAMES[type.key])
+      const ward = rng.pick(WARDS)
+      const area = rng.pick(AREAS)
+      const ownerName = rng.chance(0.25) ? rng.pick(FEMALE_NAMES) : rng.pick(MALE_NAMES)
+      const late = kind === 'renewal' && isLateRenewal(fiscalYear, createdAt)
+      const feeLines = feeLinesFor(type.key, { renewal: kind === 'renewal', late })
+      const applicantMobile = mobile()
+
+      const history: HistoryStep[] = []
+      const push = (
+        statusKey: string,
+        at: string,
+        role: Role,
+        note?: string,
+        publicNote?: boolean,
+      ) => {
+        history.push({
+          status: statusKey,
+          at,
+          byName: channel === 'online' && statusKey === 'submitted' ? `${ownerName} (অনলাইন)` : USERS[role].name,
+          byRole: role,
+          note,
+          publicNote,
+        })
+      }
+
+      push(
+        'submitted',
+        createdAt,
+        'operator',
+        channel === 'online' ? 'নাগরিক কর্নার থেকে অনলাইনে আবেদন জমা হয়েছে।' : 'কাউন্টারে আবেদন গ্রহণ।',
+        true,
+      )
+
+      let verifiedAt: string | undefined
+      let approvedAt: string | undefined
+      let paidAt: string | undefined
+      let closedAt: string | undefined
+      let cancelled: Licence['cancelled']
+
+      const reached = (s: LicenceStatus) =>
+        ['submitted', 'verified', 'approved', 'issued'].indexOf(status) >=
+        ['submitted', 'verified', 'approved', 'issued'].indexOf(s)
+
+      if (status !== 'submitted' && status !== 'cancelled' && reached('verified')) {
+        verifiedAt = shift(createdAt, rng.int(1, 3), rng.int(11, 15))
+        push(
+          'verified',
+          verifiedAt,
+          'inspector',
+          kind === 'renewal'
+            ? 'নবায়ন — কাগজপত্র যাচাই সম্পন্ন, সরেজমিনে পরিদর্শনের প্রয়োজন হয়নি।'
+            : 'সরেজমিনে প্রতিষ্ঠান পরিদর্শন করা হয়েছে; তথ্য সঠিক পাওয়া গেছে।',
+          true,
+        )
+      }
+      if (reached('approved') && status !== 'cancelled') {
+        approvedAt = shift(verifiedAt ?? createdAt, rng.int(1, 3), rng.int(11, 16))
+        push('approved', approvedAt, 'licenceOfficer', undefined, true)
+      }
+      if (status === 'issued') {
+        paidAt = shift(approvedAt ?? createdAt, rng.int(0, 3), rng.int(10, 16))
+        closedAt = paidAt
+      }
+      if (status === 'cancelled') {
+        verifiedAt = shift(createdAt, rng.int(1, 3), 12)
+        push('verified', verifiedAt, 'inspector', 'সরেজমিনে পরিদর্শন করা হয়েছে।', true)
+        const at = shift(verifiedAt, rng.int(1, 5), 15)
+        cancelled = {
+          at,
+          by: USERS.licenceOfficer.name,
+          reason: rng.pick([
+            'আবেদনে উল্লিখিত ঠিকানায় কোনো প্রতিষ্ঠান পাওয়া যায়নি।',
+            'আবেদনকারী নির্ধারিত সময়ে প্রয়োজনীয় কাগজপত্র জমা দেননি।',
+          ]),
+        }
+        history.push({
+          status: 'cancelled',
+          at,
+          byName: USERS.licenceOfficer.name,
+          byRole: 'licenceOfficer',
+          note: cancelled.reason,
+          publicNote: true,
+        })
+        closedAt = at
+      }
+
+      const licence: Licence = {
+        id: `tl${pad(licenceIndex, 3)}`,
+        serviceKey,
+        trackingNo: trackingFor(createdAt),
+        channel,
+        applicantName: ownerName,
+        applicantMobile,
+        ward,
+        status,
+        history,
+        createdAt,
+        dueAt: dueDate(createdAt, charterDaysOf(serviceKey)),
+        closedAt,
+        fiscalYear,
+        cancelled,
+        appNo: '',
+        kind,
+        business: {
+          nameBn,
+          nameEn: BUSINESS_NAMES_EN[nameBn] ?? nameBn,
+          typeKey: type.key,
+          nature: rng.pick<BusinessNature>(['একক', 'একক', 'অংশীদারি', 'কোম্পানি']),
+          address: `${rng.pick(ROADS)}, ${area}`,
+          area,
+          ward,
+          holdingNo: holdingNoFor(ward, rng.int(1, 400)),
+        },
+        owner: {
+          name: ownerName,
+          fatherName: rng.pick(FATHER_NAMES),
+          motherName: rng.pick(MOTHER_NAMES),
+          nid: nid(),
+          mobile: applicantMobile,
+        },
+        feeLines,
+        feeTotal: feeTotalOf(feeLines),
+        verificationNote: verifiedAt
+          ? 'সরেজমিনে তথ্য যাচাই করা হয়েছে; প্রতিষ্ঠান চালু অবস্থায় পাওয়া গেছে।'
+          : undefined,
+      }
+
+      licenceDrafts.push({ licence, approvedAt, paidAt })
+      licences.push(licence)
+    }
+  }
+
+  // Application numbers follow submission order, so the sequence is gapless.
+  for (const { licence } of [...licenceDrafts].sort((a, b) =>
+    a.licence.createdAt.localeCompare(b.licence.createdAt),
+  )) {
+    licence.appNo = applicationNo(licence.fiscalYear, nextSeq(SEQ.app(licence.fiscalYear)))
+  }
+
+  // The register serial is written at approval — the moment a new line would be
+  // added to the paper book — so serials follow approval order, not submission.
+  for (const draft of [...licenceDrafts]
+    .filter((d) => !!d.approvedAt)
+    .sort((a, b) => (a.approvedAt ?? '').localeCompare(b.approvedAt ?? ''))) {
+    const { licence } = draft
+    const serial = nextSeq(SEQ.licence(licence.fiscalYear))
     licence.serial = serial
-    licence.licenceNo = licenceNoFor(licence.fiscalYear, serial)
-    licence.approvedAt = raw.approved
-    licence.approvedBy = USERS.officer.name
-    log({
-      at: raw.approved!,
-      userName: USERS.officer.name,
-      role: 'officer',
-      action: 'অনুমোদন',
-      recordType: 'trade-licence',
-      recordKey: 'trade-licence',
-      recordId: id,
-      recordLabel: `${raw.nameBn} (${licence.licenceNo})`,
-      note: `রেজিস্টারে ক্রমিক নং ${serial} লিপিবদ্ধ হয়েছে।`,
-      changes: [
-        { field: 'অবস্থা', before: 'যাচাইকৃত', after: 'অনুমোদিত' },
-        { field: 'ক্রমিক নং', before: '—', after: String(serial) },
-        { field: 'লাইসেন্স নং', before: '—', after: licence.licenceNo },
-      ],
-    })
+    licence.registerNo = licenceNoFor(licence.fiscalYear, serial)
   }
 
-  // Pass 3 — fee collection issues the money receipt.
-  for (const { raw, id } of [...rows]
-    .filter((r) => r.raw.issued)
-    .sort((a, b) => a.raw.issued!.localeCompare(b.raw.issued!))) {
-    const licence = licences.get(id)!
-    const fy = fiscalYearOf(raw.issued!)
-    const no = next(SEQ.receipt(fy))
+  for (const draft of licenceDrafts) {
+    const { licence, paidAt } = draft
+    // Audit and SMS for every step that actually happened.
+    for (const step of licence.history) {
+      log({
+        at: step.at,
+        userName: step.byName,
+        role: step.byRole,
+        action: LICENCE_ACTION[step.status] ?? step.status,
+        recordType: 'trade-licence',
+        recordKey: 'trade-licence',
+        recordId: licence.id,
+        recordLabel: `${licence.business.nameBn} (${licence.registerNo ?? licence.appNo})`,
+        note: step.note,
+        changes:
+          step.status === 'approved' && licence.serial
+            ? [
+                { field: 'ক্রমিক নং', before: '—', after: String(licence.serial) },
+                { field: 'লাইসেন্স নং', before: '—', after: licence.registerNo ?? '' },
+              ]
+            : undefined,
+      })
+      sms(
+        licence.applicantMobile,
+        `${licence.trackingNo}: ${LICENCE_SMS[step.status] ?? step.status}`,
+        step.at,
+        licence.trackingNo,
+      )
+    }
+
+    if (paidAt) {
+      const online = licence.channel === 'online' && rng.chance(0.75)
+      payEvents.push({
+        at: paidAt,
+        head: 'trade-licence',
+        channel: online ? 'online' : 'office',
+        purpose: `${licence.kind === 'renewal' ? 'ট্রেড লাইসেন্স নবায়ন ফি' : 'ট্রেড লাইসেন্স ফি'} — ${licence.business.nameBn}`,
+        payerName: licence.owner.name,
+        payerMobile: licence.applicantMobile,
+        feeLines: licence.feeLines,
+        total: licence.feeTotal,
+        mode: online ? undefined : rng.pick(PAYMENT_MODES),
+        method: online ? rng.pick(ONLINE_METHODS) : undefined,
+        target: { type: 'trade-licence', id: licence.id },
+        source: { type: 'trade-licence', id: licence.id },
+        link: (paymentId, receiptId) => {
+          licence.paymentId = paymentId
+          licence.receiptId = receiptId
+        },
+      })
+      licence.history.push({
+        status: 'issued',
+        at: paidAt,
+        byName: online ? `${licence.owner.name} (অনলাইন)` : USERS.accounts.name,
+        byRole: 'accounts',
+        note: online ? 'নাগরিক অনলাইনে ফি পরিশোধ করেছেন।' : 'কাউন্টারে ফি আদায় করা হয়েছে।',
+        publicNote: true,
+      })
+      sms(licence.applicantMobile, `${licence.trackingNo}: ${LICENCE_SMS.issued}`, paidAt, licence.trackingNo)
+    }
+
+    // Citizens rate a finished service most of the time.
+    if (licence.status === 'issued' && rng.chance(0.65)) {
+      licence.feedback = makeFeedback(rng, shift(licence.closedAt ?? licence.createdAt, 1, 19))
+    }
+  }
+
+  /* ================= Register entries ================= */
+
+  const ENTRY_PLAN: { key: string; count: number }[] = [
+    { key: 'streetlight', count: 35 },
+    { key: 'garbage', count: 30 },
+    { key: 'garbage-trips', count: 40 },
+    { key: 'cert-citizen', count: 20 },
+    { key: 'cert-warish', count: 8 },
+  ]
+
+  let entryIndex = 0
+
+  for (const plan of ENTRY_PLAN) {
+    const config = getRegister(plan.key)
+    if (!config) continue
+    const stepKeys = config.steps.map((s) => s.key)
+
+    for (let i = 0; i < plan.count; i += 1) {
+      entryIndex += 1
+
+      // How far through the workflow this line has got. Most are finished; a few
+      // sit at each earlier step so every status filter has rows.
+      // Any intermediate step must be reachable, otherwise statuses in the middle
+      // of a longer workflow (a certificate's "ফি পরিশোধিত") never appear at all.
+      const roll = rng.next()
+      let reachedIndex =
+        roll < 0.62 ? stepKeys.length - 1 : rng.int(0, Math.max(0, stepKeys.length - 2))
+      const isCancelled = rng.chance(0.04) && stepKeys.length > 1
+      if (isCancelled) reachedIndex = Math.min(reachedIndex, stepKeys.length - 2)
+
+      const finished = reachedIndex === stepKeys.length - 1
+      const serviceKey = config.serviceKey ?? plan.key
+      // Trip logs are a daily book, so they only cover the last few weeks.
+      const createdAt =
+        plan.key === 'garbage-trips'
+          ? // The first few trips are dated today, so the daily card on the
+            // dashboard is never empty whenever the demo is shown.
+            i < 4
+            ? pastDay(0, 0)
+            : pastDay(1, 25)
+          : finished
+            ? pastDay(2, 400)
+            : openCreatedAt(serviceKey, 'entry')
+
+      const fiscalYear = fiscalYearOf(createdAt)
+      const ward = pickWardWithContrast(rng, plan.key)
+      const channel: Channel = config.citizenFacing && rng.chance(0.45) ? 'online' : 'office'
+      const applicantName = rng.chance(0.3) ? rng.pick(FEMALE_NAMES) : rng.pick(MALE_NAMES)
+      const applicantMobile = mobile()
+
+      const data = buildEntryData(rng, plan.key, { ward, applicantName, applicantMobile, createdAt })
+      const fee = fixedFeeOf(serviceKey)
+      const feeLines: FeeLine[] | undefined = fee > 0 ? [{ label: 'সনদ ফি', amount: fee }] : undefined
+
+      const history: HistoryStep[] = []
+      let cursor = createdAt
+      let paidAt: string | undefined
+      let closedAt: string | undefined
+
+      for (let s = 0; s <= reachedIndex; s += 1) {
+        const step = config.steps[s]
+        const actorRole: Role = step.actors[0] ?? 'operator'
+        if (s > 0) cursor = shift(cursor, rng.int(0, 3), rng.int(10, 16))
+        if (step.payment) paidAt = cursor
+        history.push({
+          status: step.key,
+          at: cursor,
+          byName:
+            s === 0 && channel === 'online' ? `${applicantName} (অনলাইন)` : USERS[actorRole].name,
+          byRole: actorRole,
+          note: stepNote(rng, plan.key, step.key),
+          publicNote: true,
+        })
+        // Staff fields are only filled at the step that asks for them.
+        for (const key of step.requiredFields ?? []) {
+          if (data[key] === undefined) {
+            data[key] = staffFieldValue(rng, key, cursor)
+          }
+        }
+      }
+      if (finished) closedAt = cursor
+
+      let cancelled: RegisterEntry['cancelled']
+      if (isCancelled) {
+        const at = shift(cursor, rng.int(1, 4), 15)
+        const by = USERS[config.cancelRoles[0] ?? 'ceo']
+        cancelled = { at, by: by.name, reason: rng.pick(CANCEL_REASONS) }
+        history.push({
+          status: 'cancelled',
+          at,
+          byName: by.name,
+          byRole: by.role,
+          note: cancelled.reason,
+          publicNote: true,
+        })
+        closedAt = at
+      }
+
+      const entry: RegisterEntry = {
+        id: `${config.serialPrefix.toLowerCase()}${pad(entryIndex, 3)}`,
+        serviceKey,
+        trackingNo: trackingFor(createdAt),
+        channel,
+        applicantName,
+        applicantMobile,
+        ward,
+        status: history[history.length - 1].status === 'cancelled'
+          ? stepKeys[reachedIndex]
+          : stepKeys[reachedIndex],
+        history,
+        createdAt,
+        dueAt: dueDate(createdAt, charterDaysOf(serviceKey)),
+        closedAt,
+        fiscalYear,
+        cancelled,
+        registerKey: config.key,
+        slaExempt: !config.citizenFacing,
+        serial: 0,
+        serialNo: '',
+        data,
+        feeLines,
+        feeTotal: feeLines ? feeTotalOf(feeLines) : undefined,
+      }
+
+      if (finished && config.printable === 'certificate') {
+        entry.certificateNo = certificateNoFor(fiscalYear, nextSeq(SEQ.certificate(fiscalYear)))
+      }
+      if (config.citizenFacing && finished && !isCancelled && rng.chance(0.6)) {
+        entry.feedback = makeFeedback(rng, shift(closedAt ?? createdAt, 1, 20))
+      }
+
+      if (paidAt && feeLines) {
+        const online = channel === 'online' && rng.chance(0.7)
+        payEvents.push({
+          at: paidAt,
+          head: 'certificate',
+          channel: online ? 'online' : 'office',
+          purpose: `${config.title.replace(' রেজিস্টার', '')} ফি — ${applicantName}`,
+          payerName: applicantName,
+          payerMobile: applicantMobile,
+          feeLines,
+          total: feeTotalOf(feeLines),
+          mode: online ? undefined : rng.pick(PAYMENT_MODES),
+          method: online ? rng.pick(ONLINE_METHODS) : undefined,
+          target: { type: 'register-entry', id: entry.id, registerKey: config.key },
+          source: { type: 'register-entry', id: entry.id, registerKey: config.key },
+          link: (paymentId, receiptId) => {
+            entry.paymentId = paymentId
+            entry.receiptId = receiptId
+          },
+        })
+      }
+
+      entries.push(entry)
+    }
+  }
+
+  // Engine serials are written on creation, so they follow creation order.
+  for (const config of REGISTERS) {
+    for (const entry of entries
+      .filter((e) => e.registerKey === config.key)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
+      const serial = nextSeq(SEQ.register(config.serialPrefix, entry.fiscalYear))
+      entry.serial = serial
+      entry.serialNo = registerSerialNo(config.serialPrefix, entry.fiscalYear, serial)
+    }
+  }
+
+  for (const entry of entries) {
+    const config = getRegister(entry.registerKey)
+    if (!config) continue
+    for (const step of entry.history) {
+      log({
+        at: step.at,
+        userName: step.byName,
+        role: step.byRole,
+        action: step.status === 'cancelled' ? 'বাতিল' : (config.steps.find((s) => s.key === step.status)?.label ?? step.status),
+        recordType: 'register-entry',
+        recordKey: config.key,
+        recordId: entry.id,
+        recordLabel: `${entryLabelOf(entry)} (${entry.serialNo})`,
+        note: step.note,
+      })
+      if (config.citizenFacing) {
+        const label = config.steps.find((s) => s.key === step.status)?.citizenLabel ?? 'অবস্থা পরিবর্তন'
+        sms(entry.applicantMobile, `${entry.trackingNo}: ${label}`, step.at, entry.trackingNo)
+      }
+    }
+  }
+
+  /* ================= Holdings ================= */
+
+  const currentFy = fiscalYearOf(today)
+  const previousFy = `${Number(currentFy.slice(0, 4)) - 1}-${pad(Number(currentFy.slice(0, 4)) % 100)}`
+
+  for (let i = 1; i <= 60; i += 1) {
+    const ward = rng.pick(WARDS)
+    const area = rng.pick(AREAS)
+    const propertyType = rng.pick(PROPERTY_TYPES)
+    const floors = propertyType === 'আবাসিক' ? rng.int(1, 3) : rng.int(1, 5)
+    const annualValuation = rng.int(12, 90) * 5000
+    const ownerName = rng.chance(0.28) ? rng.pick(FEMALE_NAMES) : rng.pick(MALE_NAMES)
+
+    const bill = buildHoldingBill(rng, currentFy, annualValuation)
+    const holding: Holding = {
+      holdingNo: holdingNoFor(ward, i),
+      ward,
+      ownerName,
+      ownerMobile: mobile(),
+      address: `${rng.pick(ROADS)}, ${area}`,
+      area,
+      propertyType,
+      floors,
+      annualValuation,
+      bills: [bill],
+    }
+
+    // Some holdings carry unpaid demand from last year, which is what the
+    // defaulter list and the arrears surcharge are there to show.
+    if (rng.chance(0.35)) {
+      const previous = buildHoldingBill(rng, previousFy, Math.round(annualValuation * 0.95))
+      previous.instalments = previous.instalments.map((inst) => ({ ...inst }))
+      bill.arrears = previous.total
+      bill.surcharge = Math.round(previous.total * 0.05)
+      holding.bills.unshift(previous)
+    }
+
+    // How much of this year's demand has been collected so far.
+    const paidCount = rng.chance(0.2) ? 0 : rng.int(1, 4)
+    for (let q = 0; q < paidCount; q += 1) {
+      const inst = bill.instalments[q]
+      const at = pastDay(1, 300)
+      const online = rng.chance(0.35)
+      payEvents.push({
+        at,
+        head: 'holding-tax',
+        channel: online ? 'online' : 'office',
+        purpose: `হোল্ডিং কর — ${holding.holdingNo}, ${q + 1}ম কিস্তি`,
+        payerName: holding.ownerName,
+        payerMobile: holding.ownerMobile,
+        feeLines: [{ label: `${q + 1}ম কিস্তি`, amount: inst.amount }],
+        total: inst.amount,
+        mode: online ? undefined : rng.pick(PAYMENT_MODES),
+        method: online ? rng.pick(ONLINE_METHODS) : undefined,
+        target: {
+          type: 'holding',
+          holdingNo: holding.holdingNo,
+          fiscalYear: currentFy,
+          instalment: inst.no,
+        },
+        source: { type: 'holding', holdingNo: holding.holdingNo },
+        link: (_paymentId, receiptId) => {
+          inst.paidAt = at
+          inst.receiptId = receiptId
+        },
+      })
+    }
+
+    holdings.push(holding)
+  }
+
+  /* ================= Payments and receipts, in collection order ================= */
+
+  payEvents.sort((a, b) => a.at.localeCompare(b.at))
+
+  payEvents.forEach((event, index) => {
+    const fy = fiscalYearOf(event.at)
+    const no = nextSeq(SEQ.receipt(fy))
     const { bookNo, pageNo } = receiptBookRef(no)
+    const paymentId = `pm${pad(index + 1, 4)}`
+    const receiptId = `rc${pad(index + 1, 4)}`
+
+    const payment: Payment = {
+      id: paymentId,
+      status: 'paid',
+      head: event.head,
+      channel: event.channel,
+      purpose: event.purpose,
+      payerName: event.payerName,
+      payerMobile: event.payerMobile,
+      feeLines: event.feeLines,
+      total: event.total,
+      createdAt: event.at,
+      paidAt: event.at,
+      mode: event.mode,
+      method: event.method,
+      txnRef: event.channel === 'online' ? txnId(rng.next) : undefined,
+      receiptId,
+      target: event.target,
+    }
+
     const receipt: Receipt = {
-      id: `rc${pad(no)}-${fy}`,
+      id: receiptId,
       no,
-      receiptNo: `MR/${fy}/${pad(no, 4)}`,
+      receiptNo: receiptNoFor(fy, no),
       bookNo,
       pageNo,
       fiscalYear: fy,
-      licenceId: id,
-      payerName: licence.owner.name,
-      purpose: `ট্রেড লাইসেন্স ফি — ${licence.business.nameBn}`,
-      feeLines: licence.feeLines,
-      total: licence.feeTotal,
-      mode: raw.mode ?? 'নগদ',
-      txnRef: raw.txnRef,
-      collectedBy: USERS.accounts.name,
-      collectedAt: raw.issued!,
+      head: event.head,
+      channel: event.channel,
+      paymentId,
+      payerName: event.payerName,
+      purpose: event.purpose,
+      feeLines: event.feeLines,
+      total: event.total,
+      mode: event.mode,
+      method: event.method,
+      txnRef: payment.txnRef,
+      collectedBy: event.channel === 'online' ? 'অনলাইন পেমেন্ট গেটওয়ে (ডেমো)' : USERS.accounts.name,
+      collectedAt: event.at,
+      source: event.source,
     }
+
+    payments.push(payment)
     receipts.push(receipt)
-    licence.issuedAt = raw.issued
-    licence.receiptId = receipt.id
-    log({
-      at: raw.issued!,
-      userName: USERS.accounts.name,
-      role: 'accounts',
-      action: 'ফি আদায় ও ইস্যু',
-      recordType: 'trade-licence',
-      recordKey: 'trade-licence',
-      recordId: id,
-      recordLabel: `${licence.business.nameBn} (${licence.licenceNo})`,
-      note: `${receipt.mode} মাধ্যমে ফি আদায়; রসিদ নং ${receipt.receiptNo}, বই নং ${bookNo}, পাতা ${pageNo}।`,
-      changes: [
-        { field: 'অবস্থা', before: 'অনুমোদিত', after: 'ইস্যুকৃত' },
-        { field: 'রসিদ নং', before: '—', after: receipt.receiptNo },
-      ],
-    })
-  }
+    event.link(paymentId, receiptId)
 
-  // Cancellations — the record stays, only a reason is added.
-  for (const { raw, id } of rows.filter((r) => r.raw.cancelled)) {
-    const licence = licences.get(id)!
-    licence.cancelledAt = raw.cancelled
-    licence.cancelledBy = USERS.officer.name
-    licence.cancelReason = raw.cancelReason
     log({
-      at: raw.cancelled!,
-      userName: USERS.officer.name,
-      role: 'officer',
-      action: 'বাতিল',
-      recordType: 'trade-licence',
-      recordKey: 'trade-licence',
-      recordId: id,
-      recordLabel: `${licence.business.nameBn} (${licence.appNo})`,
-      note: raw.cancelReason,
-      changes: [{ field: 'অবস্থা', before: 'যাচাইকৃত', after: 'বাতিল' }],
+      at: event.at,
+      userName: receipt.collectedBy,
+      role: event.head === 'holding-tax' ? 'revenueOfficer' : 'accounts',
+      action: 'ফি আদায়',
+      recordType: 'receipt',
+      recordKey: event.head,
+      recordId: receiptId,
+      recordLabel: `${receipt.receiptNo} — ${event.payerName}`,
+      note: `${event.channel === 'online' ? 'অনলাইনে' : `${event.mode} মাধ্যমে`} ${event.total} টাকা আদায়; বই নং ${bookNo}, পাতা ${pageNo}।`,
     })
-  }
-
-  // ---- Street light repairs ----
-  RAW_STREETLIGHTS.forEach((raw, i) => {
-    const fy = fiscalYearOf(raw.complaintDate)
-    const serial = next(SEQ.register('SL', fy))
-    const createdAt = `${raw.complaintDate}T09:00:00`
-    const entry: RegisterEntry = {
-      id: `sl${pad(i + 1)}`,
-      registerKey: 'streetlight-repair',
-      serial,
-      serialNo: registerSerialNo('SL', fy, serial),
-      fiscalYear: fy,
-      status: raw.status,
-      createdAt,
-      createdBy: USERS.operator.name,
-      data: {
-        poleNo: raw.poleNo,
-        ward: raw.ward,
-        road: raw.road,
-        faultType: raw.faultType,
-        complaintDate: raw.complaintDate,
-        complainant: raw.complainant,
-        complainantMobile: raw.complainantMobile,
-        technician: raw.technician ?? '',
-        repairDate: raw.repairDate ?? '',
-        materials: raw.materials ?? '',
-        remarks: raw.remarks ?? '',
-      },
-    }
-    entries.push(entry)
-
-    const label = `${raw.poleNo} — ${raw.road} (${entry.serialNo})`
-    log({
-      at: createdAt,
-      userName: USERS.operator.name,
-      role: 'operator',
-      action: 'নতুন এন্ট্রি',
-      recordType: 'register-entry',
-      recordKey: 'streetlight-repair',
-      recordId: entry.id,
-      recordLabel: label,
-      note: `${raw.faultType} — অভিযোগকারী ${raw.complainant}। ক্রমিক নং ${serial}।`,
-    })
-    if (raw.assignedAt) {
-      log({
-        at: raw.assignedAt,
-        userName: USERS.electrician.name,
-        role: 'electrician',
-        action: 'অবস্থা পরিবর্তন',
-        recordType: 'register-entry',
-        recordKey: 'streetlight-repair',
-        recordId: entry.id,
-        recordLabel: label,
-        note: `মিস্ত্রি নিযুক্ত: ${raw.technician}`,
-        changes: [{ field: 'অবস্থা', before: 'অভিযোগ গৃহীত', after: 'মিস্ত্রি নিযুক্ত' }],
-      })
-    }
-    if (raw.repairedAt) {
-      log({
-        at: raw.repairedAt,
-        userName: USERS.electrician.name,
-        role: 'electrician',
-        action: 'অবস্থা পরিবর্তন',
-        recordType: 'register-entry',
-        recordKey: 'streetlight-repair',
-        recordId: entry.id,
-        recordLabel: label,
-        note: `ব্যবহৃত মালামাল: ${raw.materials}`,
-        changes: [
-          { field: 'অবস্থা', before: 'মিস্ত্রি নিযুক্ত', after: 'মেরামত সম্পন্ন' },
-          { field: 'মেরামতের তারিখ', before: '—', after: raw.repairDate ?? '' },
-        ],
-      })
-    }
+    sms(
+      event.payerMobile,
+      `রসিদ ${receipt.receiptNo}: ${event.total} টাকা পরিশোধ সম্পন্ন। ধন্যবাদ, বগুড়া সিটি কর্পোরেশন।`,
+      event.at,
+    )
   })
 
-  // ---- Garbage vehicle trips ----
-  RAW_TRIPS.forEach((raw, i) => {
-    const date = dateAgo(raw.daysBack)
-    const fy = fiscalYearOf(date)
-    const serial = next(SEQ.register('GT', fy))
-    const createdAt = daysAgo(raw.daysBack, '17:30:00')
-    const creator = i % 3 === 0 ? USERS.conservancy : USERS.operator
-    const entry: RegisterEntry = {
-      id: `gt${pad(i + 1)}`,
-      registerKey: 'garbage-trips',
-      serial,
-      serialNo: registerSerialNo('GT', fy, serial),
-      fiscalYear: fy,
-      status: raw.status,
-      createdAt,
-      createdBy: creator.name,
-      data: {
-        date,
-        vehicleNo: raw.vehicleNo,
-        driver: raw.driver,
-        ward: raw.ward,
-        trips: raw.trips,
-        dumpingSite: raw.dumpingSite,
-        fuel: raw.fuel,
-        supervisor: raw.supervisor,
-      },
-    }
-    entries.push(entry)
+  /* ================= Notices ================= */
 
-    const label = `${raw.vehicleNo} — ওয়ার্ড ${raw.ward} (${entry.serialNo})`
-    log({
-      at: createdAt,
-      userName: creator.name,
-      role: creator.role,
-      action: 'নতুন এন্ট্রি',
-      recordType: 'register-entry',
-      recordKey: 'garbage-trips',
-      recordId: entry.id,
-      recordLabel: label,
-      note: `${raw.trips} ট্রিপ, ${raw.dumpingSite}। ক্রমিক নং ${serial}।`,
+  NOTICE_SEED.forEach((n, i) => {
+    const at = pastDay(i * 6 + 1, i * 6 + 6)
+    const author = i % 3 === 0 ? USERS.mayor : i % 3 === 1 ? USERS.ceo : USERS.licenceOfficer
+    notices.push({
+      id: `nt${pad(i + 1, 3)}`,
+      title: n.title,
+      body: n.body,
+      at,
+      byName: author.name,
+      byRole: author.role,
     })
-    if (raw.status === 'সুপারভাইজার যাচাইকৃত') {
-      log({
-        at: daysAgo(raw.daysBack, '19:15:00'),
-        userName: USERS.conservancy.name,
-        role: 'conservancy',
-        action: 'অবস্থা পরিবর্তন',
-        recordType: 'register-entry',
-        recordKey: 'garbage-trips',
-        recordId: entry.id,
-        recordLabel: label,
-        note: `সুপারভাইজার ${raw.supervisor}-এর প্রতিবেদনের সাথে মিলিয়ে যাচাই করা হয়েছে।`,
-        changes: [{ field: 'অবস্থা', before: 'এন্ট্রি', after: 'সুপারভাইজার যাচাইকৃত' }],
-      })
-    }
+    log({
+      at,
+      userName: author.name,
+      role: author.role,
+      action: 'নোটিশ প্রকাশ',
+      recordType: 'notice',
+      recordKey: 'notice',
+      recordId: `nt${pad(i + 1, 3)}`,
+      recordLabel: n.title,
+    })
   })
+
+  /* ================= The presenter's demo citizen ================= */
+
+  // Four requests at different stages on one mobile, so "আমার সব আবেদন" always
+  // has something interesting to show without hunting for a number.
+  const demoPicks = [
+    entries.find((e) => e.registerKey === 'streetlight' && !!e.closedAt && !e.cancelled),
+    entries.find((e) => e.registerKey === 'garbage' && !e.closedAt),
+    entries.find((e) => e.registerKey === 'cert-citizen' && e.status === 'paid') ??
+      entries.find((e) => e.registerKey === 'cert-citizen' && !e.closedAt),
+    licences.find((l) => l.status === 'approved'),
+  ]
+  for (const record of demoPicks) {
+    if (!record) continue
+    const previousMobile = record.applicantMobile
+    record.applicantMobile = DEMO_CITIZEN_MOBILE
+    if ('owner' in record) record.owner.mobile = DEMO_CITIZEN_MOBILE
+    if ('data' in record && record.data.mobile !== undefined) {
+      record.data.mobile = DEMO_CITIZEN_MOBILE
+    }
+    for (const n of notifications) {
+      if (n.mobile === previousMobile && n.trackingNo === record.trackingNo) {
+        n.mobile = DEMO_CITIZEN_MOBILE
+      }
+    }
+  }
 
   audit.sort((a, b) => a.at.localeCompare(b.at))
+  notifications.sort((a, b) => a.at.localeCompare(b.at))
 
   return {
-    licences: [...licences.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    receipts: receipts.sort((a, b) => b.collectedAt.localeCompare(a.collectedAt)),
-    entries: entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    sequences,
+    seedDate: iso(today),
+    licences,
+    entries,
+    holdings,
+    payments,
+    receipts,
+    notifications,
+    notices,
     audit,
+    sequences,
   }
+}
+
+/* ---------- small builders ---------- */
+
+const LICENCE_ACTION: Record<string, string> = {
+  submitted: 'আবেদন গ্রহণ',
+  verified: 'মাঠ যাচাই সম্পন্ন',
+  approved: 'অনুমোদন',
+  issued: 'ফি আদায় ও ইস্যু',
+  cancelled: 'বাতিল',
+}
+
+const LICENCE_SMS: Record<string, string> = {
+  submitted: 'আপনার ট্রেড লাইসেন্স আবেদন গৃহীত হয়েছে।',
+  verified: 'মাঠ পর্যায়ে যাচাই সম্পন্ন হয়েছে।',
+  approved: 'আবেদন অনুমোদিত হয়েছে। ফি পরিশোধ করুন।',
+  issued: 'ফি পরিশোধ সম্পন্ন; লাইসেন্স প্রস্তুত।',
+  cancelled: 'আবেদনটি বাতিল করা হয়েছে (কারণসহ)।',
+}
+
+const CANCEL_REASONS = [
+  'একই বিষয়ে পূর্বেই অভিযোগ থাকায় নতুন লাইনটি বাতিল করা হলো।',
+  'অভিযোগকারীর দেওয়া তথ্য সঠিক পাওয়া যায়নি।',
+  'আবেদনকারী নিজেই আবেদন প্রত্যাহার করেছেন।',
+]
+
+const NOTICE_SEED = [
+  {
+    title: 'ট্রেড লাইসেন্স নবায়নের সময়সীমা',
+    body: 'চলতি অর্থবছরের ট্রেড লাইসেন্স নবায়নের শেষ সময় ৩০ সেপ্টেম্বর। নির্ধারিত সময়ের পর নবায়ন করলে ১০% বিলম্ব ফি প্রযোজ্য হবে (ডেমো হার)।',
+  },
+  {
+    title: 'হোল্ডিং কর অনলাইনে পরিশোধ',
+    body: 'নাগরিক কর্নার থেকে হোল্ডিং নম্বর দিয়ে বকেয়া দেখে কিস্তি বা পূর্ণ অর্থ অনলাইনে পরিশোধ করা যাবে।',
+  },
+  {
+    title: 'পরিচ্ছন্নতা অভিযান — ওয়ার্ড ৫ ও ৬',
+    body: 'আগামী সপ্তাহে ওয়ার্ড ৫ ও ৬-এ বিশেষ পরিচ্ছন্নতা অভিযান পরিচালিত হবে। নাগরিকদের নির্দিষ্ট স্থানে বর্জ্য রাখার অনুরোধ করা হচ্ছে।',
+  },
+  {
+    title: 'সড়কবাতি মেরামত কার্যক্রম',
+    body: 'শহরের প্রধান সড়কগুলোতে নষ্ট সড়কবাতি পর্যায়ক্রমে মেরামত করা হচ্ছে। অভিযোগ জানাতে নাগরিক কর্নার ব্যবহার করুন।',
+  },
+  {
+    title: 'নাগরিকত্ব সনদের জন্য প্রয়োজনীয় কাগজপত্র',
+    body: 'নাগরিকত্ব সনদের আবেদনের সাথে জাতীয় পরিচয়পত্রের কপি ও সর্বশেষ হোল্ডিং কর পরিশোধের রসিদ সংযুক্ত করতে হবে।',
+  },
+  {
+    title: 'অফিস সময়সূচি',
+    body: 'সিটি কর্পোরেশন কার্যালয় রবিবার থেকে বৃহস্পতিবার সকাল ৯টা থেকে বিকাল ৫টা পর্যন্ত খোলা থাকবে।',
+  },
+  {
+    title: 'ডিজিটাল রেজিস্টার চালু',
+    body: 'হাতে লেখা রেজিস্টার খাতার পাশাপাশি ডিজিটাল রেজিস্টার ব্যবস্থা চালু হয়েছে। এতে আবেদনের অবস্থা নাগরিক নিজেই দেখতে পারবেন।',
+  },
+  {
+    title: 'ওয়ারিশ সনদ আবেদনের নিয়ম',
+    body: 'ওয়ারিশ সনদের আবেদনে মৃত্যু সনদের কপি এবং সকল ওয়ারিশের নাম, সম্পর্ক ও বয়সের তালিকা দিতে হবে।',
+  },
+  {
+    title: 'বর্জ্য পরিবহনের নতুন সময়সূচি',
+    body: 'আগামী মাস থেকে বর্জ্য সংগ্রহের গাড়ি প্রতিদিন সকাল ৭টা থেকে ১১টার মধ্যে নির্ধারিত রুটে চলাচল করবে।',
+  },
+  {
+    title: 'নাগরিক মতামত আহ্বান',
+    body: 'সেবার মান উন্নয়নে নাগরিকদের মতামত ও রেটিং দেওয়ার অনুরোধ করা হচ্ছে। আবেদন সম্পন্ন হলে ট্র্যাকিং পাতায় রেটিং দিতে পারবেন।',
+  },
+]
+
+/** Ratings average around 4.2, with a few unhappy ones so the number is believable. */
+function makeFeedback(rng: Rng, at: string) {
+  const roll = rng.next()
+  const rating: 1 | 2 | 3 | 4 | 5 = roll < 0.05 ? 2 : roll < 0.15 ? 3 : roll < 0.55 ? 4 : 5
+  const comments: Record<number, string[]> = {
+    2: ['অনেক দিন ঘুরতে হয়েছে।', 'সময়মতো কাজ হয়নি।'],
+    3: ['কাজ হয়েছে, তবে আরেকটু দ্রুত হলে ভালো হতো।'],
+    4: ['ভালো সেবা পেয়েছি।', 'অনলাইনে আবেদন করা সহজ ছিল।'],
+    5: ['খুব দ্রুত কাজ হয়েছে, ধন্যবাদ।', 'অফিসে যেতে হয়নি, ঘরে বসেই সব হয়েছে।', 'চমৎকার সেবা।'],
+  }
+  return {
+    rating,
+    comment: rng.chance(0.7) ? rng.pick(comments[rating]) : undefined,
+    at,
+  }
+}
+
+/** Quarterly demand from the annual valuation, at demo rates. */
+function buildHoldingBill(rng: Rng, fiscalYear: string, annualValuation: number): HoldingBill {
+  const lines: FeeLine[] = [
+    { label: 'হোল্ডিং কর (৭%)', amount: Math.round(annualValuation * 0.07) },
+    { label: 'পরিচ্ছন্নতা রেট (৩%)', amount: Math.round(annualValuation * 0.03) },
+    { label: 'সড়কবাতি রেট (২%)', amount: Math.round(annualValuation * 0.02) },
+  ]
+  const total = lines.reduce((s, l) => s + l.amount, 0)
+  const quarter = Math.round(total / 4)
+  const instalments: HoldingInstalment[] = [1, 2, 3, 4].map((no) => ({
+    no,
+    // The last instalment absorbs the rounding, so the four always add up.
+    amount: no === 4 ? total - quarter * 3 : quarter,
+  }))
+  // `rng` is threaded through so every holding draws from the same stream.
+  void rng
+  return { fiscalYear, lines, total, instalments, arrears: 0, surcharge: 0 }
+}
+
+/**
+ * Wards differ noticeably so the Mayor's ward map has contrast instead of a flat
+ * wash of one colour. A few wards deliberately carry more complaints.
+ */
+function pickWardWithContrast(rng: Rng, registerKey: string): number {
+  const busy = [3, 5, 6, 11, 14]
+  if ((registerKey === 'streetlight' || registerKey === 'garbage') && rng.chance(0.45)) {
+    return rng.pick(busy)
+  }
+  return rng.pick(WARDS)
+}
+
+function stepNote(rng: Rng, registerKey: string, stepKey: string): string | undefined {
+  if (registerKey === 'streetlight') {
+    if (stepKey === 'assigned') return 'মিস্ত্রি নিযুক্ত করা হয়েছে; আগামীকাল ঘটনাস্থলে যাবেন।'
+    if (stepKey === 'repaired') return 'বাতি মেরামত করে চালু করা হয়েছে।'
+  }
+  if (registerKey === 'garbage') {
+    if (stepKey === 'assigned') return 'পরিচ্ছন্নতা দল পাঠানো হয়েছে।'
+    if (stepKey === 'cleaned') return 'এলাকা পরিষ্কার করা হয়েছে।'
+  }
+  if (registerKey === 'cert-warish' && stepKey === 'verified') {
+    return 'ওয়ারিশদের তালিকা স্থানীয়ভাবে যাচাই করা হয়েছে।'
+  }
+  if (stepKey === 'approved') return 'কাউন্সিলর অনুমোদন দিয়েছেন।'
+  if (stepKey === 'issued') return 'সনদ প্রস্তুত, আবেদনকারীকে জানানো হয়েছে।'
+  return rng.chance(0.3) ? 'কার্যক্রম চলমান।' : undefined
+}
+
+function staffFieldValue(rng: Rng, key: string, at: string): string | number {
+  switch (key) {
+    case 'technician':
+      return rng.pick(TECHNICIANS)
+    case 'materials':
+      return rng.pick(MATERIALS)
+    case 'team':
+      return rng.pick(CLEANING_TEAMS)
+    case 'repairDate':
+    case 'resolvedDate':
+      return at.slice(0, 10)
+    case 'verifyNote':
+      return 'ওয়ারিশদের তালিকা যাচাই করা হয়েছে; তথ্য সঠিক পাওয়া গেছে।'
+    default:
+      return ''
+  }
+}
+
+function buildEntryData(
+  rng: Rng,
+  registerKey: string,
+  ctx: { ward: number; applicantName: string; applicantMobile: string; createdAt: string },
+): Record<string, string | number | Heir[]> {
+  const { ward, applicantName, applicantMobile, createdAt } = ctx
+  const area = rng.pick(AREAS)
+
+  switch (registerKey) {
+    case 'streetlight':
+      return {
+        poleNo: rng.chance(0.75) ? `P-${ward}-${rng.int(100, 999)}` : '',
+        ward,
+        road: `${rng.pick(ROADS)}, ${area}`,
+        faultType: rng.pick(['বাতি নষ্ট', 'বাতি নষ্ট', 'তার ছেঁড়া', 'খুঁটি হেলে গেছে', 'সুইচ নষ্ট']),
+        description: rng.chance(0.5) ? 'রাতে পুরো এলাকা অন্ধকার থাকে।' : '',
+        complainant: applicantName,
+        complainantMobile: applicantMobile,
+      }
+    case 'garbage':
+      return {
+        ward,
+        landmark: `${rng.pick(ROADS)} সংলগ্ন, ${area}`,
+        problemType: rng.pick([
+          'ময়লা জমে আছে',
+          'ডাস্টবিন উপচে পড়ছে',
+          'ড্রেন বন্ধ',
+          'মৃত প্রাণী',
+        ]),
+        description: rng.chance(0.5) ? 'দুর্গন্ধে চলাচল করা কঠিন হয়ে পড়েছে।' : '',
+        complainant: applicantName,
+        complainantMobile: applicantMobile,
+      }
+    case 'garbage-trips':
+      return {
+        tripDate: createdAt.slice(0, 10),
+        vehicleNo: rng.pick(VEHICLES),
+        driver: rng.pick(DRIVERS),
+        ward,
+        route: `${area} — ${rng.pick(ROADS)}`,
+        trips: rng.int(2, 6),
+        dumpSite: rng.pick(['ঠনঠনিয়া ডাম্পিং', 'নামুজা ডাম্পিং', 'ফুলবাড়ি ডাম্পিং']),
+        fuel: rng.int(8, 22),
+        supervisor: rng.pick(SUPERVISORS),
+      }
+    case 'cert-citizen':
+      return {
+        name: applicantName,
+        fatherName: rng.pick(FATHER_NAMES),
+        motherName: rng.pick(MOTHER_NAMES),
+        dob: `${rng.int(1960, 2005)}-${pad(rng.int(1, 12))}-${pad(rng.int(1, 28))}`,
+        nid: String(rng.int(1_000_000_000, 9_999_999_999)),
+        address: `${rng.pick(ROADS)}, ${area}`,
+        ward,
+        mobile: applicantMobile,
+      }
+    case 'cert-warish': {
+      const heirCount = rng.int(2, 5)
+      // A person has one widow and one mother, so those relations are drawn at
+      // most once; sons, daughters and siblings may repeat.
+      const singular = new Set(['স্ত্রী', 'মাতা'])
+      const used = new Set<string>()
+      const heirs: Heir[] = []
+      while (heirs.length < heirCount) {
+        const relation = rng.pick(HEIR_RELATIONS)
+        if (singular.has(relation) && used.has(relation)) continue
+        used.add(relation)
+        const female = relation === 'স্ত্রী' || relation === 'মাতা' || relation === 'কন্যা' || relation === 'বোন'
+        heirs.push({
+          name: female ? rng.pick(FEMALE_NAMES) : rng.pick(MALE_NAMES),
+          relation,
+          age: relation === 'মাতা' ? rng.int(55, 80) : relation === 'স্ত্রী' ? rng.int(35, 65) : rng.int(18, 50),
+        })
+      }
+      return {
+        deceasedName: rng.pick(MALE_NAMES),
+        deathDate: shift(createdAt, -rng.int(30, 400)).slice(0, 10),
+        applicantName,
+        relation: rng.pick(['পুত্র', 'কন্যা', 'স্ত্রী']),
+        address: `${rng.pick(ROADS)}, ${area}`,
+        ward,
+        mobile: applicantMobile,
+        heirs,
+      }
+    }
+    default:
+      return { ward }
+  }
+}
+
+/** Short human label for a register entry, used in audit rows and search. */
+export function entryLabelOf(entry: RegisterEntry): string {
+  const config = getRegister(entry.registerKey)
+  if (!config) return entry.serialNo
+  const parts = config.fields
+    .filter((f) => f.showInBook && f.type !== 'date' && f.type !== 'heirs' && f.type !== 'photo')
+    .slice(0, 2)
+    .map((f) => {
+      const value = entry.data[f.key]
+      return Array.isArray(value) ? '' : String(value ?? '')
+    })
+    .filter(Boolean)
+  return parts.length ? parts.join(' — ') : entry.serialNo
 }
