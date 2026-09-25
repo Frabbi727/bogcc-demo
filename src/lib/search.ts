@@ -1,5 +1,5 @@
 import { businessTypeOf } from '@/data/seed'
-import { bnToEnDigits } from '@/lib/bn'
+import { matchesLicence, normalizeTerm } from '@/lib/licence'
 import { REGISTERS } from '@/registers'
 import type { Licence, RegisterEntry } from '@/types'
 
@@ -19,36 +19,16 @@ export interface SearchGroup {
   hits: SearchHit[]
 }
 
-/** Normalises a term so Bangla and English digits both match. */
-function norm(s: string): string {
-  return bnToEnDigits(s).toLowerCase().trim()
-}
-
 export function searchAll(
   raw: string,
   licences: Licence[],
   entries: RegisterEntry[],
 ): SearchGroup[] {
-  const q = norm(raw)
+  const q = normalizeTerm(raw)
   if (!q) return []
 
   const licenceHits: SearchHit[] = licences
-    .filter((l) =>
-      norm(
-        [
-          l.business.nameBn,
-          l.business.nameEn,
-          l.owner.name,
-          l.owner.fatherName,
-          l.owner.nid,
-          l.owner.mobile,
-          l.registerNo ?? '',
-          l.appNo,
-          l.business.holdingNo,
-          l.business.area,
-        ].join(' '),
-      ).includes(q),
-    )
+    .filter((l) => matchesLicence(l, q))
     .map((l) => ({
       id: l.id,
       to: `/office/trade-licence/${l.id}`,
@@ -67,7 +47,7 @@ export function searchAll(
     const hits: SearchHit[] = entries
       .filter((e) => e.registerKey === config.key)
       .filter((e) =>
-        norm([e.serialNo, ...Object.values(e.data).map(String)].join(' ')).includes(q),
+        normalizeTerm([e.serialNo, ...Object.values(e.data).map(String)].join(' ')).includes(q),
       )
       .map((e) => {
         const shown = config.fields.filter((f) => f.showInBook).slice(0, 3)

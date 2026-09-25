@@ -1,4 +1,4 @@
-import { ArrowLeft, Printer, Receipt as ReceiptIcon } from 'lucide-react'
+import { ArrowLeft, Printer, Receipt as ReceiptIcon, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -20,6 +20,15 @@ import { Textarea } from '@/components/ui/Textarea'
 import { PAYMENT_MODES, businessTypeOf } from '@/data/seed'
 import { formatDateBn, formatDateTimeBn, formatTaka, toBnDigits } from '@/lib/bn'
 import { validUntil } from '@/lib/fiscal'
+import { LinkButton } from '@/components/ui/LinkButton'
+import {
+  expiryOf,
+  RENEWAL_LABEL,
+  RENEWAL_TONE,
+  renewalFor,
+  renewalState,
+  renewedFrom,
+} from '@/lib/licence'
 import { LICENCE_STATUS_LABEL, LICENCE_STATUS_TONE, nextActionFor } from '@/lib/status'
 import { useStore } from '@/store/useStore'
 import { SlaBadge } from '@/components/SlaBadge'
@@ -32,7 +41,8 @@ const DONE_BY_STATUS = { submitted: 1, verified: 2, approved: 3, issued: 4, canc
 export function LicenceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const licence = useStore((s) => s.licences.find((l) => l.id === id))
+  const licences = useStore((s) => s.licences)
+  const licence = licences.find((l) => l.id === id)
   const receipts = useStore((s) => s.receipts)
   const allAudit = useStore((s) => s.audit)
   const role = useStore((s) => s.session?.role)
@@ -75,6 +85,9 @@ export function LicenceDetail() {
   const done = DONE_BY_STATUS[licence.status]
   const next = nextActionFor(licence.status)
   const type = businessTypeOf(licence.business.typeKey)
+  const renewal = renewalFor(licences, licence)
+  const parent = renewedFrom(licences, licence)
+  const validity = renewalState(licences, licence)
 
   const steps = [
     {
@@ -158,6 +171,17 @@ export function LicenceDetail() {
             আবেদন নং {toBnDigits(licence.appNo)}
             {licence.registerNo && <> · লাইসেন্স নং {toBnDigits(licence.registerNo)}</>}
             {' · '}অর্থবছর {toBnDigits(licence.fiscalYear)}
+            {parent && (
+              <>
+                {' · '}নবায়ন —{' '}
+                <Link
+                  to={`/office/trade-licence/${parent.id}`}
+                  className="text-forest-700 hover:underline"
+                >
+                  আগের লাইসেন্স {toBnDigits(parent.registerNo ?? parent.appNo)}
+                </Link>
+              </>
+            )}
           </>
         }
         badge={
@@ -340,11 +364,44 @@ export function LicenceDetail() {
         )}
 
         {licence.status === 'issued' && (
-          <Card title="ইস্যু সম্পন্ন">
+          <Card
+            title="ইস্যু সম্পন্ন"
+            actions={
+              <>
+                <StatusBadge label={RENEWAL_LABEL[validity]} tone={RENEWAL_TONE[validity]} />
+                {/* Renewal is the operator's counter job, and only once per licence. */}
+                {role === 'operator' && !renewal && (
+                  <LinkButton to={`/office/trade-licence/renew?from=${licence.id}`} variant="primary">
+                    <RefreshCw size={14} />
+                    নবায়ন করুন
+                  </LinkButton>
+                )}
+              </>
+            }
+          >
             <p className="text-[13.5px] text-muted">
               লাইসেন্স ইস্যু হয়েছে {issuedOn && formatDateTimeBn(issuedOn)}। মেয়াদ{' '}
-              {formatDateBn(validUntil(licence.fiscalYear))} পর্যন্ত।
+              {formatDateBn(validUntil(licence.fiscalYear))} পর্যন্ত, প্রতি অর্থবছরে নবায়ন করতে হবে।
             </p>
+            {renewal && (
+              <p className="mt-2 text-[13.5px]">
+                নবায়ন আবেদন{' '}
+                <Link
+                  to={`/office/trade-licence/${renewal.id}`}
+                  className="font-medium text-forest-700 hover:underline"
+                >
+                  {toBnDigits(renewal.registerNo ?? renewal.appNo)}
+                </Link>{' '}
+                <span className="text-muted">
+                  ({LICENCE_STATUS_LABEL[renewal.status]} · অর্থবছর {toBnDigits(renewal.fiscalYear)})
+                </span>
+              </p>
+            )}
+            {validity === 'expired' && !renewal && (
+              <p className="mt-2 text-[13px] text-stamp">
+                মেয়াদ {formatDateBn(expiryOf(licence))} তারিখে শেষ হয়েছে, এখনো নবায়ন হয়নি।
+              </p>
+            )}
           </Card>
         )}
 

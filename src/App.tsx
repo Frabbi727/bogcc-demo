@@ -24,6 +24,7 @@ import { RegisterNew } from '@/pages/registers/RegisterNew'
 import { LicenceDetail } from '@/pages/trade-licence/Detail'
 import { LicenceList } from '@/pages/trade-licence/List'
 import { LicenceNew } from '@/pages/trade-licence/New'
+import { LicenceRenew } from '@/pages/trade-licence/Renew'
 import { PrintLicence } from '@/pages/trade-licence/PrintLicence'
 import { TradeLicenceRegister } from '@/pages/trade-licence/Register'
 
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="mayor/ward/:n" element={<WardDrill />} />
           <Route path="trade-licence" element={<LicenceList />} />
           <Route path="trade-licence/new" element={<LicenceNew />} />
+          <Route path="trade-licence/renew" element={<LicenceRenew />} />
           <Route path="trade-licence/:id" element={<LicenceDetail />} />
           <Route path="register/trade-licence" element={<TradeLicenceRegister />} />
           <Route path="receipts" element={<ReceiptList />} />

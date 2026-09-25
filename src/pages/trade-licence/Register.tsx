@@ -1,4 +1,4 @@
-import { Printer } from 'lucide-react'
+import { Download, Printer } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { LedgerTable, type LedgerColumn, type LedgerRow } from '@/components/LedgerTable'
@@ -7,9 +7,12 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { WARDS, businessTypeOf } from '@/data/seed'
 import { formatDateBn, formatNumberBn, toBnDigits } from '@/lib/bn'
+import { downloadCsv } from '@/lib/csv'
 import { currentFiscalYear, fiscalYearOptions } from '@/lib/fiscal'
 import { useStore } from '@/store/useStore'
 import { approvedAt, approvedBy, receiptFor } from '@/lib/records'
+import { LICENCE_STATUS_LABEL } from '@/lib/status'
+import type { Licence } from '@/types'
 
 const COLUMNS: LedgerColumn[] = [
   { key: 'serial', label: 'ক্রমিক নং', align: 'center' },
@@ -44,6 +47,27 @@ export function TradeLicenceRegister() {
   const totalFee = entries
     .filter((l) => l.status !== 'cancelled')
     .reduce((sum, l) => sum + l.feeTotal, 0)
+
+  /** Officers open this in Excel, so the CSV carries plain values, not Bangla digits. */
+  function exportCsv() {
+    downloadCsv(`trade-licence-register-${fy}`, entries, [
+      { header: 'ক্রমিক নং', value: (l: Licence) => l.serial ?? '' },
+      { header: 'লাইসেন্স নং', value: (l: Licence) => l.registerNo ?? '' },
+      { header: 'তারিখ', value: (l: Licence) => (approvedAt(l) ?? l.createdAt).slice(0, 10) },
+      { header: 'প্রতিষ্ঠানের নাম', value: (l: Licence) => l.business.nameBn },
+      { header: 'ঠিকানা', value: (l: Licence) => l.business.address },
+      { header: 'মালিকের নাম', value: (l: Licence) => l.owner.name },
+      { header: 'পিতার নাম', value: (l: Licence) => l.owner.fatherName },
+      { header: 'ব্যবসার ধরন', value: (l: Licence) => businessTypeOf(l.business.typeKey).label },
+      { header: 'ওয়ার্ড', value: (l: Licence) => l.business.ward },
+      { header: 'ফি (টাকা)', value: (l: Licence) => l.feeTotal },
+      { header: 'রসিদ নং', value: (l: Licence) => receiptFor(receipts, l)?.receiptNo ?? '' },
+      { header: 'ধরন', value: (l: Licence) => (l.kind === 'renewal' ? 'নবায়ন' : 'নতুন') },
+      { header: 'অবস্থা', value: (l: Licence) => LICENCE_STATUS_LABEL[l.status] },
+      { header: 'অনুমোদনকারী', value: (l: Licence) => approvedBy(l) ?? '' },
+      { header: 'বাতিলের কারণ', value: (l: Licence) => l.cancelled?.reason ?? '' },
+    ])
+  }
 
   const rows: LedgerRow[] = entries.map((l) => {
     const receipt = receiptFor(receipts, l)
@@ -109,6 +133,10 @@ export function TradeLicenceRegister() {
                 </option>
               ))}
             </Select>
+            <Button onClick={exportCsv} disabled={entries.length === 0}>
+              <Download size={14} />
+              CSV
+            </Button>
             <Button variant="primary" onClick={() => window.print()}>
               <Printer size={14} />
               পাতা প্রিন্ট
