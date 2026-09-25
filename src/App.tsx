@@ -12,6 +12,9 @@ import { Verify } from '@/pages/Verify'
 import { CitizenHome } from '@/pages/citizen/Home'
 import { ComingSoon } from '@/pages/citizen/ComingSoon'
 import { PrintCertificate } from '@/pages/print/Certificate'
+import { Mayor } from '@/pages/mayor/Mayor'
+import { Present } from '@/pages/mayor/Present'
+import { WardDrill } from '@/pages/mayor/WardDrill'
 import { Landing } from '@/pages/public/Landing'
 import { PrintReceipt } from '@/pages/receipts/PrintReceipt'
 import { ReceiptList } from '@/pages/receipts/List'
@@ -89,8 +92,12 @@ export default function App() {
 
         {/* Office */}
         <Route path="/office/login" element={<Login />} />
+        {/* Presentation mode runs full screen, so it sits outside the office shell. */}
+        <Route path="/office/mayor/present" element={<Present />} />
         <Route path="/office" element={<Layout />}>
           <Route index element={<Dashboard />} />
+          <Route path="mayor" element={<Mayor />} />
+          <Route path="mayor/ward/:n" element={<WardDrill />} />
           <Route path="trade-licence" element={<LicenceList />} />
           <Route path="trade-licence/new" element={<LicenceNew />} />
           <Route path="trade-licence/:id" element={<LicenceDetail />} />

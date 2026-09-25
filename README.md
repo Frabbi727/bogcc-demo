@@ -94,6 +94,12 @@ no further code.
     it can be edited or deleted.
 11. Switch to **প্রধান নির্বাহী কর্মকর্তা** and show the dashboard — collections, pending work and
     the charts.
+12. Switch to **মেয়র / প্রশাসক**. The **মেয়র ড্যাশবোর্ড** opens by itself: the KPI row with each
+    figure's change against last month, the 21-tile ward map (click a tile to drill into that
+    ward), the revenue, channel and complaint charts, the overdue list with the desk each file is
+    sitting on, section performance, citizen ratings and the paper-saved estimate. Finish with
+    **উপস্থাপনা মোড**, which cycles the same live figures full-screen for a projector — arrow keys
+    move between slides, space holds one, Escape comes back.
 
 `ডেমো রিসেট` in the top bar puts everything back to the seeded data at any point.
 

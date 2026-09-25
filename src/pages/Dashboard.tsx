@@ -1,7 +1,7 @@
 import { AlertTriangle, BadgeCheck, Clock, Coins, Lightbulb, Truck, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import {
   Bar,
   BarChart,
@@ -18,7 +18,7 @@ import { Timeline } from '@/components/Timeline'
 import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { USERS } from '@/data/seed'
-import { formatNumberBn, formatTaka, toBnDigits } from '@/lib/bn'
+import { formatDecimalBn, formatTaka, toBnDigits } from '@/lib/bn'
 import { currentFiscalYear } from '@/lib/fiscal'
 import { LICENCE_STATUS_LABEL, LICENCE_STATUS_TONE, nextActionFor } from '@/lib/status'
 import { REGISTERS, getRegister } from '@/registers'
@@ -223,6 +223,9 @@ export function Dashboard() {
   const recent = audit.slice(-8).reverse()
   const user = role ? USERS[role] : null
 
+  // The mayor has no desk work; the city-wide view is their home page.
+  if (role === 'mayor') return <Navigate to="/office/mayor" replace />
+
   return (
     <>
       <PageHeader
@@ -384,7 +387,7 @@ export function Dashboard() {
 
         <Card
           title="গড় মেরামত সময়"
-          subtitle={`সামগ্রিক গড় ${formatNumberBn(avgRepairDays)} দিন`}
+          subtitle={`সামগ্রিক গড় ${formatDecimalBn(avgRepairDays)} দিন`}
         >
           {repairDays.length === 0 ? (
             <EmptyState title="এখনো কোনো মেরামত সম্পন্ন হয়নি" />

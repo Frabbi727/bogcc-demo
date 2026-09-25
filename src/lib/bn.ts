@@ -32,6 +32,19 @@ export function formatTaka(n: number): string {
   return sign + '৳' + toBnDigits(groupIndian(n))
 }
 
+/**
+ * A number that keeps its decimals, e.g. ৪.২ — averages and ratings would
+ * otherwise be truncated to whole numbers by the grouping helpers.
+ * Trailing zeros are dropped, so 4.0 still reads ৪.
+ */
+export function formatDecimalBn(n: number, places = 1): string {
+  const sign = n < 0 ? '-' : ''
+  const abs = Math.abs(n)
+  const [whole, fraction = ''] = abs.toFixed(places).split('.')
+  const decimals = fraction.replace(/0+$/, '')
+  return sign + toBnDigits(groupIndian(Number(whole)) + (decimals ? `.${decimals}` : ''))
+}
+
 /** Plain grouped number in Bangla digits, no currency symbol. */
 export function formatNumberBn(n: number): string {
   return toBnDigits(groupIndian(n))
