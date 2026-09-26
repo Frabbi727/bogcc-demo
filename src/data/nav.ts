@@ -32,8 +32,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'ট্রেড লাইসেন্স', to: '/office/trade-licence' },
       { label: 'লাইসেন্স নবায়ন', to: '/office/trade-licence/renew', roles: ['operator'] },
       { label: 'ট্রেড লাইসেন্স রেজিস্টার', to: '/office/register/trade-licence' },
+      { label: 'হোল্ডিং কর', to: '/office/holding' },
       { label: 'মার্কেট দোকান ভাড়া', to: '/office/registers/market-rent' },
       { label: 'রসিদ ও দৈনিক আদায়', to: '/office/receipts' },
+      { label: 'দৈনিক আদায় বিবরণী', to: '/office/receipts/daily' },
     ],
   },
   {

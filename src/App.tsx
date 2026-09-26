@@ -21,12 +21,17 @@ import { CitizenTrack } from '@/pages/citizen/Track'
 import { CitizenTrackDetail } from '@/pages/citizen/TrackDetail'
 import { CitizenWard } from '@/pages/citizen/Ward'
 import { PrintCertificate } from '@/pages/print/Certificate'
+import { PrintDailyStatement } from '@/pages/print/DailyStatement'
+import { HoldingDefaulters } from '@/pages/holding/Defaulters'
+import { HoldingDetail } from '@/pages/holding/Detail'
+import { HoldingList } from '@/pages/holding/List'
 import { Mayor } from '@/pages/mayor/Mayor'
 import { Present } from '@/pages/mayor/Present'
 import { WardDrill } from '@/pages/mayor/WardDrill'
 import { Pay } from '@/pages/payments/Pay'
 import { Landing } from '@/pages/public/Landing'
 import { PrintReceipt } from '@/pages/receipts/PrintReceipt'
+import { DailyCollection } from '@/pages/receipts/Daily'
 import { ReceiptList } from '@/pages/receipts/List'
 import { RegisterBook } from '@/pages/registers/RegisterBook'
 import { RegisterDetail } from '@/pages/registers/RegisterDetail'
@@ -52,6 +57,7 @@ export default function App() {
         <Route path="/print/licence/:id" element={<PrintLicence />} />
         <Route path="/print/receipt/:id" element={<PrintReceipt />} />
         <Route path="/print/certificate/:id" element={<PrintCertificate />} />
+        <Route path="/print/daily/:date" element={<PrintDailyStatement />} />
 
         {/* Citizen Corner */}
         <Route path="/nagorik" element={<CitizenLayout />}>
@@ -82,7 +88,12 @@ export default function App() {
           <Route path="trade-licence/renew" element={<LicenceRenew />} />
           <Route path="trade-licence/:id" element={<LicenceDetail />} />
           <Route path="register/trade-licence" element={<TradeLicenceRegister />} />
+          <Route path="holding" element={<HoldingList />} />
+          {/* The defaulter list sits before the holding number so it is not read as one. */}
+          <Route path="holding/defaulters" element={<HoldingDefaulters />} />
+          <Route path="holding/:holdingNo" element={<HoldingDetail />} />
           <Route path="receipts" element={<ReceiptList />} />
+          <Route path="receipts/daily" element={<DailyCollection />} />
           <Route path="registers/:key" element={<RegisterBook />} />
           <Route path="registers/:key/new" element={<RegisterNew />} />
           <Route path="registers/:key/:id" element={<RegisterDetail />} />

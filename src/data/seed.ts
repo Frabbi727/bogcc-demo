@@ -8,6 +8,7 @@
  * machine and across reloads of the same day.
  */
 
+import { toBnDigits } from '@/lib/bn'
 import { fiscalYearOf } from '@/lib/fiscal'
 import {
   certificateNo as certificateNoFor,
@@ -747,7 +748,7 @@ export function buildSeed(today: Date = new Date()): SeedData {
         at,
         head: 'holding-tax',
         channel: online ? 'online' : 'office',
-        purpose: `হোল্ডিং কর — ${holding.holdingNo}, ${q + 1}ম কিস্তি`,
+        purpose: `হোল্ডিং কর — ${holding.holdingNo}, ${toBnDigits(q + 1)}ম কিস্তি (${toBnDigits(currentFy)})`,
         payerName: holding.ownerName,
         payerMobile: holding.ownerMobile,
         feeLines: [{ label: `${q + 1}ম কিস্তি`, amount: inst.amount }],

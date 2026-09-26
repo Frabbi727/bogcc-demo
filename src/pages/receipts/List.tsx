@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Input } from '@/components/ui/Input'
+import { LinkButton } from '@/components/ui/LinkButton'
 import { Select } from '@/components/ui/Select'
 import { PAYMENT_MODES } from '@/data/seed'
 import { formatDateBn, formatTaka, formatTimeBn, toBnDigits } from '@/lib/bn'
@@ -70,6 +71,9 @@ export function ReceiptList() {
                 </option>
               ))}
             </Select>
+            <LinkButton to="/office/receipts/daily" variant="primary">
+              দৈনিক আদায়
+            </LinkButton>
           </>
         }
       />
@@ -166,7 +170,7 @@ export function ReceiptList() {
                       <td className="px-3 py-2 text-right align-top whitespace-nowrap">{formatTaka(r.total)}</td>
                       <td className="px-3 py-2 align-top">
                         <Link
-                          to={`/receipts/${r.id}/print`}
+                          to={`/print/receipt/${r.id}`}
                           className="inline-flex items-center gap-1 text-forest-700 hover:underline"
                         >
                           <Printer size={13} />

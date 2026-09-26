@@ -15,6 +15,7 @@ import {
   trackingNo as trackingNoFor,
   txnId,
 } from '@/lib/ids'
+import { toBnDigits } from '@/lib/bn'
 import { currentFiscalYear, fiscalYearOf } from '@/lib/fiscal'
 import { dueDate } from '@/lib/sla'
 import { getRegister } from '@/registers'
@@ -168,6 +169,13 @@ interface StoreState {
     instalmentNo: number,
     channel: Channel,
   ) => Payment | undefined
+  /** The same instalment taken over the counter, receipt issued at once. */
+  collectHoldingAtCounter: (
+    holdingNo: string,
+    fiscalYear: string,
+    instalmentNo: number,
+    payment: CounterPayment,
+  ) => Receipt | undefined
 
   /* citizen extras */
   rateRecord: (id: string, rating: 1 | 2 | 3 | 4 | 5, comment?: string) => void
@@ -222,6 +230,30 @@ export const useStore = create<StoreState>()(
         if (!mobile) return
         const item: Notification = { id: newId('sm'), mobile, text, at: now(), trackingNo }
         set((s) => ({ notifications: [...s.notifications, item] }))
+      }
+
+      /**
+       * The payment an unpaid holding instalment should raise. Shared by the
+       * online route and the counter, so both describe the money the same way.
+       * Returns undefined when the instalment does not exist or is already paid.
+       */
+      function holdingPaymentInput(
+        holdingNo: string,
+        fiscalYear: string,
+        instalmentNo: number,
+      ): Omit<Parameters<StoreState['startPayment']>[0], 'channel'> | undefined {
+        const holding = get().holdings.find((h) => h.holdingNo === holdingNo)
+        const bill = holding?.bills.find((b) => b.fiscalYear === fiscalYear)
+        const inst = bill?.instalments.find((i) => i.no === instalmentNo)
+        if (!holding || !bill || !inst || inst.paidAt) return undefined
+        return {
+          target: { type: 'holding', holdingNo, fiscalYear, instalment: instalmentNo },
+          head: 'holding-tax',
+          purpose: `হোল্ডিং কর — ${holdingNo}, ${toBnDigits(instalmentNo)}ম কিস্তি (${toBnDigits(fiscalYear)})`,
+          payerName: holding.ownerName,
+          payerMobile: holding.ownerMobile,
+          feeLines: [{ label: `${instalmentNo}ম কিস্তি`, amount: inst.amount }],
+        }
       }
 
       function patchLicence(id: string, patch: Partial<Licence>) {
@@ -825,19 +857,19 @@ export const useStore = create<StoreState>()(
         },
 
         payHoldingInstalment: (holdingNo, fiscalYear, instalmentNo, channel) => {
-          const holding = get().holdings.find((h) => h.holdingNo === holdingNo)
-          const bill = holding?.bills.find((b) => b.fiscalYear === fiscalYear)
-          const inst = bill?.instalments.find((i) => i.no === instalmentNo)
-          if (!holding || !bill || !inst || inst.paidAt) return undefined
-          return get().startPayment({
-            target: { type: 'holding', holdingNo, fiscalYear, instalment: instalmentNo },
-            head: 'holding-tax',
-            purpose: `হোল্ডিং কর — ${holdingNo}, ${instalmentNo}ম কিস্তি (${fiscalYear})`,
-            payerName: holding.ownerName,
-            payerMobile: holding.ownerMobile,
-            feeLines: [{ label: `${instalmentNo}ম কিস্তি`, amount: inst.amount }],
-            channel,
-          })
+          const input = holdingPaymentInput(holdingNo, fiscalYear, instalmentNo)
+          if (!input) return undefined
+          return get().startPayment({ ...input, channel })
+        },
+
+        /**
+         * The counter route for the same instalment. It goes through
+         * `collectAtCounter` so the receipt book stays gapless across channels.
+         */
+        collectHoldingAtCounter: (holdingNo, fiscalYear, instalmentNo, counter) => {
+          const input = holdingPaymentInput(holdingNo, fiscalYear, instalmentNo)
+          if (!input) return undefined
+          return get().collectAtCounter({ ...input, channel: 'office' }, counter)
         },
 
         /* ---------- citizen extras ---------- */

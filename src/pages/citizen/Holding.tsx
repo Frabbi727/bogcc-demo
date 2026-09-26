@@ -9,9 +9,9 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Field } from '@/components/ui/Field'
 import { Input } from '@/components/ui/Input'
 import { LinkButton } from '@/components/ui/LinkButton'
-import { bnToEnDigits, formatDateBn, formatTaka, toBnDigits } from '@/lib/bn'
+import { formatDateBn, formatTaka, toBnDigits } from '@/lib/bn'
+import { currentBill, findHolding } from '@/lib/holding'
 import { useStore } from '@/store/useStore'
-import type { Holding, HoldingBill } from '@/types'
 
 /**
  * Citizen holding tax: look a holding up, read the year's demand, pay an
@@ -30,13 +30,11 @@ export function CitizenHolding() {
   const [searched, setSearched] = useState<string | null>(null)
 
   // A presenter typing on stage should not be tripped by a dash or a Bangla
-  // digit, so both sides collapse to bare alphanumerics before comparing.
-  const found = useMemo(() => {
-    if (!searched) return undefined
-    const needle = normalise(searched)
-    if (!needle) return undefined
-    return holdings.find((h) => normalise(h.holdingNo) === needle)
-  }, [holdings, searched])
+  // digit, so the lookup collapses both sides to bare alphanumerics.
+  const found = useMemo(
+    () => (searched ? findHolding(holdings, searched) : undefined),
+    [holdings, searched],
+  )
 
   const bill = found ? currentBill(found) : undefined
 
@@ -220,17 +218,4 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
       <dd className={strong ? 'text-[13.5px] font-medium' : 'text-[13px]'}>{value}</dd>
     </div>
   )
-}
-
-/** `w05-0123`, `W050123` and `০৫-০১২৩` all have to find the same holding. */
-function normalise(s: string): string {
-  return bnToEnDigits(s)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .replace(/^W/, '')
-}
-
-/** The newest bill on the holding — seeded arrears push an older one in front. */
-function currentBill(holding: Holding): HoldingBill | undefined {
-  return [...holding.bills].sort((a, b) => b.fiscalYear.localeCompare(a.fiscalYear))[0]
 }
