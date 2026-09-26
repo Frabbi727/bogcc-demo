@@ -45,6 +45,34 @@ const rows: [string, unknown][] = [
   ['receiptBookRef(100)', JSON.stringify(receiptBookRef(100))],
   ['receiptBookRef(101)', JSON.stringify(receiptBookRef(101))],
   ['receiptBookRef(250)', JSON.stringify(receiptBookRef(250))],
+
 ]
+
+/*
+ * A counter taking money for mixed heads in one sitting. The numbers must
+ * interleave — not restart per head — and each must map to the right leaf of the
+ * paper book, the way one book at one counter does. The store gets this by
+ * keying its receipt sequence on the fiscal year alone (`SEQ.receipt(fy)`,
+ * `src/data/seed.ts`) and creating every receipt in one place (`settle()`,
+ * `src/store/useStore.ts`). A port that keys per head still produces tidy
+ * numbers — just the wrong ones, and this row is where that shows up.
+ */
+const COLLECTION_ORDER: string[] = [
+  'trade-licence',
+  'holding-tax',
+  'certificate',
+  'holding-tax',
+  'trade-licence',
+]
+
+let counter = 98
+for (const head of COLLECTION_ORDER) {
+  counter += 1
+  const { bookNo, pageNo } = receiptBookRef(counter)
+  rows.push([
+    `receipt #${counter} (${head})`,
+    `${receiptNo('2026-27', counter)} book ${bookNo} page ${pageNo}`,
+  ])
+}
 
 for (const [label, value] of rows) console.log(label.padEnd(36), '=>', value)

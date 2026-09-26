@@ -15,6 +15,7 @@ import { PrintCertificate } from '@/pages/print/Certificate'
 import { Mayor } from '@/pages/mayor/Mayor'
 import { Present } from '@/pages/mayor/Present'
 import { WardDrill } from '@/pages/mayor/WardDrill'
+import { Pay } from '@/pages/payments/Pay'
 import { Landing } from '@/pages/public/Landing'
 import { PrintReceipt } from '@/pages/receipts/PrintReceipt'
 import { ReceiptList } from '@/pages/receipts/List'
@@ -35,6 +36,8 @@ export default function App() {
         {/* Public: no session of any kind needed. */}
         <Route path="/" element={<Landing />} />
         <Route path="/verify" element={<Verify />} />
+        {/* The mock gateway is public: a citizen pays from a link, with no session. */}
+        <Route path="/pay/:paymentId" element={<Pay />} />
 
         {/* Print views open directly, so a QR or a shared link always works. */}
         <Route path="/print/licence/:id" element={<PrintLicence />} />

@@ -50,6 +50,7 @@ export function LicenceDetail() {
   const verifyLicence = useStore((s) => s.verifyLicence)
   const approveLicence = useStore((s) => s.approveLicence)
   const collectAtCounter = useStore((s) => s.collectAtCounter)
+  const payForLicence = useStore((s) => s.payForLicence)
   const cancelLicence = useStore((s) => s.cancelLicence)
 
   // Derived, not selected: a selector returning a fresh array re-renders forever.
@@ -145,6 +146,15 @@ export function LicenceDetail() {
     )
     setTxnError('')
     if (created) toast.success(`ফি আদায় হয়েছে, রসিদ নং ${toBnDigits(created.receiptNo)}`)
+  }
+
+  /**
+   * Hands the fee to the mock gateway instead of the counter. The payment is
+   * created here and settled there, so the receipt still comes from one place.
+   */
+  function onPayOnline() {
+    const payment = payForLicence(licence!.id, 'online')
+    if (payment) navigate(`/pay/${payment.id}`)
   }
 
   function onCancel() {
@@ -341,6 +351,7 @@ export function LicenceDetail() {
                       <Button variant="primary" onClick={onCollect}>
                         ফি আদায় করুন
                       </Button>
+                      <Button onClick={onPayOnline}>অনলাইনে পরিশোধ (ডেমো)</Button>
                       <Button variant="danger" onClick={() => setCancelOpen(true)}>
                         বাতিল করুন
                       </Button>

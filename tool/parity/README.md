@@ -17,6 +17,12 @@ If a Dart test fails after a change here, the port has drifted and the two
 demos will disagree on screen. **Do not edit the expected value in the Dart
 test by hand** — run the script and work out which side is wrong.
 
+`rules.mts` also prints a run of receipts collected for mixed revenue heads in
+one sitting. The numbers must interleave rather than restart per head, and the
+run deliberately crosses a receipt-book boundary (100 → 101), which is the case
+that catches a port keying its receipt sequence per head instead of per fiscal
+year. `txnRef` is random and is deliberately not frozen.
+
 ```sh
 npx tsx tool/parity/bn.mts
 npx tsx tool/parity/rules.mts

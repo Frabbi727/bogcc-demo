@@ -38,6 +38,7 @@ export function RegisterDetail() {
   const advanceEntry = useStore((s) => s.advanceEntry)
   const cancelEntry = useStore((s) => s.cancelEntry)
   const collectAtCounter = useStore((s) => s.collectAtCounter)
+  const payForEntry = useStore((s) => s.payForEntry)
   const receipts = useStore((s) => s.receipts)
 
   // Derived, not selected: a selector returning a fresh array re-renders forever.
@@ -132,6 +133,12 @@ export function RegisterDetail() {
     )
     setTxnError('')
     if (created) toast.success(`ফি আদায় হয়েছে, রসিদ নং ${toBnDigits(created.receiptNo)}`)
+  }
+
+  /** Same fee, handed to the mock gateway rather than collected at the counter. */
+  function onPayOnline() {
+    const payment = payForEntry(entry!.id, 'online')
+    if (payment) navigate(`/pay/${payment.id}`)
   }
 
   function onCancel() {
@@ -281,6 +288,7 @@ export function RegisterDetail() {
                     <Button variant="primary" onClick={onCollect}>
                       ফি আদায় করুন
                     </Button>
+                    <Button onClick={onPayOnline}>অনলাইনে পরিশোধ (ডেমো)</Button>
                     {canCancel && (
                       <Button variant="danger" onClick={() => setCancelOpen(true)}>
                         বাতিল করুন
