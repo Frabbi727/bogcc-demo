@@ -1,32 +1,24 @@
-import { Bell, FileText, Home, Search } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
-import { cn } from '@/lib/cn'
-import { useStore } from '@/store/useStore'
+import { CITIZEN_TABS, useUnreadMessages } from '@/components/citizenNav'
 import { toBnDigits } from '@/lib/bn'
+import { cn } from '@/lib/cn'
 
-const TABS = [
-  { to: '/nagorik', label: 'হোম', icon: Home, end: true },
-  { to: '/nagorik/services', label: 'সেবা', icon: FileText, end: false },
-  { to: '/nagorik/track', label: 'ট্র্যাক', icon: Search, end: false },
-  { to: '/nagorik/messages', label: 'বার্তা', icon: Bell, end: false },
-]
-
-/** Persistent bottom tabs for the Citizen Corner, the way a phone app works. */
+/**
+ * Persistent bottom tabs for the Citizen Corner, the way a phone app works.
+ * Hidden from `lg:` up, where `CitizenSideNav` takes over.
+ */
 export function BottomNav() {
-  const mobile = useStore((s) => s.citizen?.mobile)
-  const unread = useStore((s) =>
-    mobile ? s.notifications.filter((n) => n.mobile === mobile && !n.read).length : 0,
-  )
+  const unread = useUnreadMessages()
 
   return (
     <nav
       aria-label="নাগরিক কর্নার মেনু"
-      className="no-print sticky bottom-0 z-20 border-t border-rule bg-white"
+      className="no-print sticky bottom-0 z-20 border-t border-rule bg-white lg:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <ul className="mx-auto flex max-w-2xl">
-        {TABS.map((tab) => (
+        {CITIZEN_TABS.map((tab) => (
           <li key={tab.to} className="flex-1">
             <NavLink
               to={tab.to}
@@ -42,7 +34,7 @@ export function BottomNav() {
                 <>
                   <span className="relative">
                     <tab.icon size={19} strokeWidth={isActive ? 2.2 : 1.8} />
-                    {tab.to === '/nagorik/messages' && unread > 0 && (
+                    {tab.label === 'বার্তা' && unread > 0 && (
                       <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-stamp px-1 text-[10px] leading-4 text-white">
                         {toBnDigits(unread)}
                       </span>

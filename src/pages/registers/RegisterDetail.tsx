@@ -20,7 +20,8 @@ import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { PAYMENT_MODES } from '@/data/seed'
 import { formatDateBn, formatDateTimeBn, formatTaka, toBnDigits } from '@/lib/bn'
-import { displayField, normaliseField, validateField } from '@/lib/registerFields'
+import { displayField } from '@/lib/registerFields'
+import { fieldValueFrom, validateFormField } from '@/pages/registers/values'
 import { entryStatusTone } from '@/lib/status'
 import { getRegister } from '@/registers'
 import { useStore } from '@/store/useStore'
@@ -92,7 +93,7 @@ export function RegisterDetail() {
     const found: Record<string, string> = {}
     for (const field of promptFields) {
       // These columns become mandatory at the moment the status moves forward.
-      const message = validateField({ ...field, required: true }, extra[field.key] ?? '')
+      const message = validateFormField({ ...field, required: true }, extra[field.key] ?? '')
       if (message) found[field.key] = message
     }
     setExtraErrors(found)
@@ -103,7 +104,7 @@ export function RegisterDetail() {
 
     const payload: Record<string, FieldValue> = {}
     for (const field of promptFields) {
-      payload[field.key] = normaliseField(field, extra[field.key] ?? '')
+      payload[field.key] = fieldValueFrom(field, extra[field.key] ?? '')
     }
     const reached = advanceEntry(entry!.id, payload)
     if (reached) {

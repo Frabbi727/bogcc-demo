@@ -11,7 +11,7 @@ import { applicantFrom, getRegister } from '@/registers'
 import { useStore } from '@/store/useStore'
 import { bnToEnDigits } from '@/lib/bn'
 import type { FieldValue } from '@/types'
-import { normaliseField, validateField } from '@/lib/registerFields'
+import { fieldValueFrom, validateFormField } from '@/pages/registers/values'
 import { FieldControl } from './fields'
 
 export function RegisterNew() {
@@ -37,7 +37,7 @@ export function RegisterNew() {
     e.preventDefault()
     const found: Record<string, string> = {}
     for (const field of formFields) {
-      const message = validateField(field, values[field.key] ?? '')
+      const message = validateFormField(field, values[field.key] ?? '')
       if (message) found[field.key] = message
     }
     setErrors(found)
@@ -48,7 +48,7 @@ export function RegisterNew() {
 
     const data: Record<string, FieldValue> = {}
     for (const field of config!.fields) {
-      data[field.key] = field.staffOnly ? '' : normaliseField(field, values[field.key] ?? '')
+      data[field.key] = field.staffOnly ? '' : fieldValueFrom(field, values[field.key] ?? '')
     }
 
     // The record needs an applicant even when the register does not collect one:
@@ -104,7 +104,7 @@ export function RegisterNew() {
                 onChange={(value) => {
                   setValues((v) => ({ ...v, [field.key]: value }))
                   if (errors[field.key]) {
-                    setErrors((e) => ({ ...e, [field.key]: validateField(field, value) ?? '' }))
+                    setErrors((e) => ({ ...e, [field.key]: validateFormField(field, value) ?? '' }))
                   }
                 }}
               />

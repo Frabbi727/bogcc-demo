@@ -1,9 +1,19 @@
-import { ClipboardList, FileSearch, Megaphone, Receipt, ShieldCheck, Trash2 } from 'lucide-react'
+import {
+  ClipboardList,
+  FileSearch,
+  Megaphone,
+  MapPin,
+  Receipt,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Card } from '@/components/ui/Card'
 import { formatNumberBn, timeAgoBn, toBnDigits } from '@/lib/bn'
+import { COUNCILLOR_WARD } from '@/data/wards'
 import { publicStats } from '@/lib/publicStats'
 import { useStore } from '@/store/useStore'
 
@@ -14,6 +24,18 @@ const TILES = [
   { to: '/nagorik/holding', label: 'হোল্ডিং কর দিন', hint: 'বকেয়া দেখে পরিশোধ', icon: Receipt },
   { to: '/verify', label: 'সনদ যাচাই', hint: 'QR বা নম্বর দিয়ে', icon: ShieldCheck },
   { to: '/nagorik/notices', label: 'নোটিশ', hint: 'কর্পোরেশনের ঘোষণা', icon: Megaphone },
+  {
+    to: '/nagorik/apply/tl-renew',
+    label: 'লাইসেন্স নবায়ন',
+    hint: 'ট্রেড লাইসেন্স',
+    icon: RefreshCw,
+  },
+  {
+    to: `/nagorik/ward/${COUNCILLOR_WARD}`,
+    label: 'আমার ওয়ার্ড',
+    hint: 'কাউন্সিলর ও যোগাযোগ',
+    icon: MapPin,
+  },
 ]
 
 export function CitizenHome() {

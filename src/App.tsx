@@ -9,8 +9,17 @@ import { Login } from '@/pages/Login'
 import { Phase2 } from '@/pages/Phase2'
 import { SearchPage } from '@/pages/Search'
 import { Verify } from '@/pages/Verify'
+import { CitizenApply } from '@/pages/citizen/Apply'
+import { CitizenApplyLicence } from '@/pages/citizen/ApplyLicence'
+import { CitizenHolding } from '@/pages/citizen/Holding'
 import { CitizenHome } from '@/pages/citizen/Home'
-import { ComingSoon } from '@/pages/citizen/ComingSoon'
+import { CitizenMessages } from '@/pages/citizen/Messages'
+import { CitizenNotices } from '@/pages/citizen/Notices'
+import { CitizenServiceDetail } from '@/pages/citizen/ServiceDetail'
+import { CitizenServices } from '@/pages/citizen/Services'
+import { CitizenTrack } from '@/pages/citizen/Track'
+import { CitizenTrackDetail } from '@/pages/citizen/TrackDetail'
+import { CitizenWard } from '@/pages/citizen/Ward'
 import { PrintCertificate } from '@/pages/print/Certificate'
 import { Mayor } from '@/pages/mayor/Mayor'
 import { Present } from '@/pages/mayor/Present'
@@ -47,51 +56,17 @@ export default function App() {
         {/* Citizen Corner */}
         <Route path="/nagorik" element={<CitizenLayout />}>
           <Route index element={<CitizenHome />} />
-          <Route
-            path="services"
-            element={
-              <ComingSoon
-                title="সেবার তালিকা"
-                note="নাগরিক সনদ (সিটিজেন চার্টার) ও অনলাইন আবেদনের ফরম পরের ধাপে যুক্ত হচ্ছে। এখন অফিস থেকে আবেদন গ্রহণ করা যাচ্ছে।"
-              />
-            }
-          />
-          <Route
-            path="track"
-            element={
-              <ComingSoon
-                title="আবেদন ট্র্যাক করুন"
-                note="ট্র্যাকিং নম্বর ও মোবাইল দিয়ে আবেদনের প্রতিটি ধাপ দেখার সুবিধা পরের ধাপে যুক্ত হচ্ছে।"
-              />
-            }
-          />
-          <Route
-            path="messages"
-            element={
-              <ComingSoon
-                title="বার্তা"
-                note="প্রতিটি অবস্থা পরিবর্তনের এসএমএস (ডেমো) এখানে দেখা যাবে — পরের ধাপে যুক্ত হচ্ছে।"
-              />
-            }
-          />
-          <Route
-            path="holding"
-            element={
-              <ComingSoon
-                title="হোল্ডিং কর"
-                note="হোল্ডিং নম্বর দিয়ে দাবি ও বকেয়া দেখে অনলাইনে পরিশোধের সুবিধা পরের ধাপে যুক্ত হচ্ছে।"
-              />
-            }
-          />
-          <Route
-            path="notices"
-            element={
-              <ComingSoon
-                title="নোটিশ বোর্ড"
-                note="সব নোটিশের পূর্ণ তালিকা পরের ধাপে যুক্ত হচ্ছে। সর্বশেষ নোটিশগুলো হোম পাতায় দেখা যাচ্ছে।"
-              />
-            }
-          />
+          <Route path="services" element={<CitizenServices />} />
+          <Route path="services/:serviceKey" element={<CitizenServiceDetail />} />
+          <Route path="apply/tl-new" element={<CitizenApplyLicence serviceKey="tl-new" />} />
+          <Route path="apply/tl-renew" element={<CitizenApplyLicence serviceKey="tl-renew" />} />
+          <Route path="apply/:serviceKey" element={<CitizenApply />} />
+          <Route path="track" element={<CitizenTrack />} />
+          <Route path="track/:trackingNo" element={<CitizenTrackDetail />} />
+          <Route path="messages" element={<CitizenMessages />} />
+          <Route path="holding" element={<CitizenHolding />} />
+          <Route path="notices" element={<CitizenNotices />} />
+          <Route path="ward/:n" element={<CitizenWard />} />
         </Route>
 
         {/* Office */}

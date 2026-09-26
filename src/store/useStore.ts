@@ -18,6 +18,7 @@ import {
 import { currentFiscalYear, fiscalYearOf } from '@/lib/fiscal'
 import { dueDate } from '@/lib/sla'
 import { getRegister } from '@/registers'
+import type { RegisterConfig } from '@/registers/types'
 import type {
   AuditEntry,
   Business,
@@ -33,6 +34,7 @@ import type {
   Owner,
   Payment,
   PaymentMode,
+  Photo,
   Receipt,
   RegisterEntry,
   RevenueHead,
@@ -57,6 +59,24 @@ function now(): string {
 
 function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+/**
+ * Photo fields collected on intake, as record photos. A complaint's own picture
+ * is the "before" of the before/after pair the citizen is shown once the work is
+ * done; the "after" is added later, when staff close the job.
+ */
+function photosFromFields(
+  config: RegisterConfig,
+  data: Record<string, FieldValue>,
+  at: string,
+): Photo[] | undefined {
+  const photos = config.fields
+    .filter((field) => field.type === 'photo')
+    .map((field) => data[field.key])
+    .filter((value): value is string => typeof value === 'string' && value.startsWith('data:'))
+    .map((dataUrl): Photo => ({ dataUrl, at, kind: 'before' }))
+  return photos.length ? photos : undefined
 }
 
 interface AuditInput {
@@ -605,6 +625,11 @@ export const useStore = create<StoreState>()(
             serial,
             serialNo: registerSerialNo(config.serialPrefix, fy, serial),
             data,
+            // A photo field is the complaint's "before" picture. Lifting it onto
+            // the record keeps every photo in one place, so the tracking page and
+            // the office views read `photos` and never have to know which field
+            // a given register happens to keep its picture in.
+            photos: photosFromFields(config, data, createdAt),
             feeLines,
             feeTotal: feeLines ? feeTotalOf(feeLines) : undefined,
           }
